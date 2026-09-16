@@ -1,11 +1,14 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { AtlasEntry } from './types';
-import { insertRows, deleteRow } from './db';
+import { insertRows, deleteRow, updateAtlas } from './db';
+import { RegionMap, MapKind } from './RegionMap';
 import { Icon } from './Icon';
 import { CONTINENTS, WILD_ANIMALS, EATEN_ANIMALS, TOTAL_COUNTRIES,
          US_STATES, CHINA_PROVINCES, TOTAL_STATES, TOTAL_PROVINCES,
          PARKS_BY_REGION, TOTAL_PARKS } from './catalog';
 import { useEscape } from './useEscape';
+
+const MAPPED = ['country', 'state', 'province', 'park'];
 
 export type PickerKind = 'country' | 'animal_seen' | 'animal_eaten' | 'state' | 'province' | 'park';
 
@@ -56,25 +59,26 @@ export function Picker({
   onSaved: () => void;
 }) {
   const cfg = CONFIG[kind];
-  const have = useMemo(() => new Map(existing.map((e) => [e.name.toLowerCase(), e])), [existing]);
 
   useEscape(onClose);
 
 
-  const [checked, setChecked] = useState<Set<string>>(
-    () => new Set(existing.map((e) => e.name)),
+  // Three states, not two: off -> visited -> planning to go -> off.
+  const [marks, setMarks] = useState<Record<string, string>>(
+    () => Object.fromEntries(existing.map((e) => [e.name, e.state || 'visited'])),
   );
+  const checked = new Set(Object.keys(marks));
   const [filter, setFilter] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [custom, setCustom] = useState('');
 
-  const toggle = (name: string) =>
-    setChecked((s) => {
-      const n = new Set(s);
-      if (n.has(name)) n.delete(name);
-      else n.add(name);
-      return n;
+  const cycle = (name: string) =>
+    setMarks((m) => {
+      const next = { ...m };
+      if (!next[name]) next[name] = 'visited';
+      else if (next[name] === 'visited') next[name] = 'planned';
+      else delete next[name];
+      return next;
     });
 
   const groups = cfg.groups
@@ -88,18 +92,22 @@ export function Picker({
     setBusy(true);
     setError('');
     try {
-      const before = new Set(existing.map((e) => e.name));
-      const toAdd = [...checked].filter((n) => !before.has(n));
-      const toRemove = existing.filter((e) => !checked.has(e.name));
+      const before = new Map(existing.map((e) => [e.name, e]));
+      const toAdd = Object.entries(marks).filter(([n]) => !before.has(n));
+      const toRemove = existing.filter((e) => !marks[e.name]);
+      const toUpdate = existing.filter(
+        (e) => marks[e.name] && marks[e.name] !== (e.state || 'visited'),
+      );
 
       if (toAdd.length) {
         await insertRows(
           'cs_atlas',
-          toAdd.map((name) => ({
+          toAdd.map(([name, state]) => ({
             user_id: userId,
             kind,
             name,
             detail: '',
+            state,
             happened_on: null,
             years: null,
             display_order: 0,
@@ -107,6 +115,7 @@ export function Picker({
           })),
         );
       }
+      for (const row of toUpdate) await updateAtlas(row.id, { state: marks[row.name] });
       for (const row of toRemove) await deleteRow('cs_atlas', row.id);
       onSaved();
       onClose();
@@ -117,12 +126,6 @@ export function Picker({
     }
   };
 
-  const addCustom = () => {
-    const names = custom.split(',').map((n) => n.trim()).filter(Boolean);
-    if (!names.length) return;
-    setChecked((s) => new Set([...s, ...names]));
-    setCustom('');
-  };
 
   const total = kind === 'country' ? TOTAL_COUNTRIES
     : kind === 'state' ? TOTAL_STATES
@@ -133,7 +136,17 @@ export function Picker({
     <div className="scrim" onClick={onClose}>
       <div className="modal wide" onClick={(e) => e.stopPropagation()}>
         <h2>{cfg.title}</h2>
-        <p className="hint">{cfg.hint}</p>
+        <p className="hint">
+          {cfg.hint}
+          {MAPPED.includes(kind) && ' Click once for visited, twice for planning to go.'}
+        </p>
+
+        {MAPPED.includes(kind) && (
+          <div className="picker-map">
+            <RegionMap kind={kind as MapKind} visited={existing} userId={userId}
+                       onChanged={onSaved} />
+          </div>
+        )}
 
         <div className="field">
           <input
@@ -156,8 +169,8 @@ export function Picker({
                   {g.items.map((i) => (
                     <button
                       key={i}
-                      className={`pick ${checked.has(i) ? 'on' : ''}`}
-                      onClick={() => toggle(i)}
+                      className={`pick ${marks[i] === 'visited' ? 'on' : marks[i] === 'planned' ? 'planned' : ''}`}
+                      onClick={() => cycle(i)}
                     >
                       {(kind === 'animal_seen' || kind === 'animal_eaten') && (
                         <span className="ic"><Icon name={i} /></span>
@@ -169,41 +182,19 @@ export function Picker({
               </div>
             );
           })}
-          {[...checked].filter((c) => !cfg.groups.some((g) => g.items.includes(c))).length > 0 && (
-            <div className="pick-group">
-              <div className="pick-head">Yours <span className="d">not in the list</span></div>
-              <div className="pick-items">
-                {[...checked]
-                  .filter((c) => !cfg.groups.some((g) => g.items.includes(c)))
-                  .map((c) => (
-                    <button key={c} className="pick on" onClick={() => toggle(c)}>
-                      {c}
-                    </button>
-                  ))}
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="field" style={{ marginTop: 12 }}>
-          <label>Not listed? Add your own</label>
-          <div className="two">
-            <input
-              value={custom}
-              onChange={(e) => setCustom(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && addCustom()}
-              placeholder="Comma-separated"
-            />
-            <button className="btn" onClick={addCustom}>Add to list</button>
-          </div>
         </div>
 
         {error && <p className="r">{error}</p>}
 
         <div className="modal-actions">
           <span className="pick-count">
-            {checked.size} selected{total ? ` of ${total}` : ''}
-            {have.size !== checked.size && <span className="gold"> · unsaved changes</span>}
+            {Object.values(marks).filter((v) => v === 'visited').length}
+            {total ? ` of ${total}` : ' selected'}
+            {Object.values(marks).filter((v) => v === 'planned').length > 0 && (
+              <span className="gold">
+                {' '}· {Object.values(marks).filter((v) => v === 'planned').length} planned
+              </span>
+            )}
           </span>
           <button className="btn" onClick={onClose}>Cancel</button>
           <button className="btn primary" onClick={save} disabled={busy}>
