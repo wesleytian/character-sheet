@@ -24,7 +24,7 @@ import { Vault } from './Vault';
 import { VaultLock, isUnlocked } from './VaultLock';
 import { RegionMap, MapModal, MapKind } from './RegionMap';
 import { LabsModal } from './LabsModal';
-import { loadFriends, Friend } from './crm';
+import { loadFriends, refreshFriends, Friend } from './crm';
 import { CONTINENTS, CONTINENT_OF, TOTAL_COUNTRIES, TOTAL_STATES, TOTAL_PROVINCES, TOTAL_PARKS } from './catalog';
 
 /** Epithets for the auto-generated title under the name. */
@@ -391,6 +391,9 @@ function Fellowship({ order, userId, onChanged }:
         ))}
       </div>
       <div className="src-line">
+        <button className="src-link" onClick={() => { refreshFriends(); loadFriends(20).then(setFriends); }}>
+          refresh
+        </button>
         <Tip body={<>Your twenty most-contacted people over the last year, scored as
           <b> messages + call minutes &times; 3</b>. Taken live from your CRM, and deliberately
           not based on tier or starred, which are labels you set by hand.</>}>

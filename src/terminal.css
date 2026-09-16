@@ -1127,3 +1127,15 @@ span.cnum.masked {
 .worldmap .ml.visited, .worldmap .ml.on { fill: #14171A; stroke: #DCAF89; stroke-width: 2px; font-weight: 700; }
 .worldmap .ml.planned { fill: #D9A03C; stroke: #10161B; stroke-width: 2.5px; }
 .worldmap .park-label.visited { fill: #14171A; stroke: #7FA86B; }
+
+/* ---------- reorderable private list ---------- */
+.pl-row { position: relative; cursor: grab; }
+.pl-row.dragging { opacity: .4; cursor: grabbing; }
+.pl-grip { flex: none; color: var(--faint); font-size: 13px; cursor: grab; }
+.pl-row:hover .pl-grip { color: var(--dim); }
+.pl-row.drop-before::before, .pl-row.drop-after::after {
+  content: ""; position: absolute; left: 0; right: 0; height: 2px;
+  background: var(--gold); box-shadow: 0 0 6px rgba(220,175,137,.8);
+}
+.pl-row.drop-before::before { top: -1px; }
+.pl-row.drop-after::after { bottom: -1px; }

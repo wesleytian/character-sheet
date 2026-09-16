@@ -17,6 +17,8 @@ export function PrivateList({
   const [name, setName] = useState('');
   const [when, setWhen] = useState('');
   const [busy, setBusy] = useState(false);
+  const [drag, setDrag] = useState<string | null>(null);
+  const [over, setOver] = useState<{ id: string; after: boolean } | null>(null);
 
   const add = async () => {
     if (!name.trim() || busy) return;
@@ -24,7 +26,7 @@ export function PrivateList({
     try {
       await insertRows('cs_atlas', [{
         user_id: userId, kind, name: name.trim(), detail: '',
-        happened_on: when || null, years: null, display_order: 0, is_public: false,
+        happened_on: when || null, years: null, display_order: entries.length, is_public: false,
       }]);
       setName(''); setWhen('');
       onChanged();
@@ -36,8 +38,22 @@ export function PrivateList({
     onChanged();
   };
 
-  const sorted = [...entries].sort((a, b) =>
-    (b.happened_on ?? '').localeCompare(a.happened_on ?? ''));
+  const sorted = [...entries].sort((a, b) => {
+    if (a.display_order !== b.display_order) return a.display_order - b.display_order;
+    return (b.happened_on ?? '').localeCompare(a.happened_on ?? '');
+  });
+
+  const drop = async (targetId: string, after: boolean) => {
+    const from = drag;
+    setDrag(null); setOver(null);
+    if (!from || from === targetId) return;
+    const ids = sorted.map((e) => e.id).filter((i) => i !== from);
+    const at = ids.indexOf(targetId);
+    ids.splice(after ? at + 1 : at, 0, from);
+    // Renumber the whole list so the order is stable whatever it was before.
+    await Promise.all(ids.map((id, i) => updateAtlas(id, { display_order: i })));
+    onChanged();
+  };
 
   return (
     <div className="scrim" onClick={onClose}>
@@ -64,7 +80,32 @@ export function PrivateList({
         <div className="labs-scroll">
           <div className="panel-head">{entries.length} recorded</div>
           {sorted.map((e) => (
-            <div className="row pl-row" key={e.id}>
+            <div
+              className={
+                `row pl-row${drag === e.id ? ' dragging' : ''}` +
+                (over?.id === e.id ? (over.after ? ' drop-after' : ' drop-before') : '')
+              }
+              key={e.id}
+              draggable
+              onDragStart={(ev) => {
+                setDrag(e.id);
+                ev.dataTransfer.effectAllowed = 'move';
+                ev.dataTransfer.setData('text/plain', e.id);
+              }}
+              onDragEnd={() => { setDrag(null); setOver(null); }}
+              onDragOver={(ev) => {
+                ev.preventDefault();
+                ev.dataTransfer.dropEffect = 'move';
+                const r = (ev.currentTarget as HTMLElement).getBoundingClientRect();
+                setOver({ id: e.id, after: ev.clientY > r.top + r.height / 2 });
+              }}
+              onDrop={(ev) => {
+                ev.preventDefault();
+                const r = (ev.currentTarget as HTMLElement).getBoundingClientRect();
+                drop(e.id, ev.clientY > r.top + r.height / 2);
+              }}
+            >
+              <span className="pl-grip" title="Drag to reorder">⠿</span>
               <input
                 className="qedit pl-when"
                 type="date"
