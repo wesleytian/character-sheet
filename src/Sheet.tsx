@@ -84,24 +84,68 @@ function useDismiss(open: boolean, close: () => void) {
   return ref;
 }
 
-/** Where a reading sits inside (or outside) its healthy window. */
-function RangeMeter({ value, low, high }:
-  { value: number; low: number | null; high: number | null }) {
-  const lo = low ?? (high != null ? high * 0.4 : value * 0.5);
-  const hi = high ?? (low != null ? low * 2.2 : value * 1.5);
-  const padLo = lo - (hi - lo) * 0.45;
-  const padHi = hi + (hi - lo) * 0.45;
-  const pos = (v: number) => Math.max(0, Math.min(100, ((v - padLo) / (padHi - padLo)) * 100));
-  const zoneL = pos(low ?? padLo);
-  const zoneR = pos(high ?? padHi);
+/**
+ * Where a reading sits on a population scale, with the 50th, 75th and 90th
+ * percentiles marked and the goal shown as a separate caret. A bar that only
+ * says in-range or out-of-range cannot show how far you have left to go.
+ */
+function RangeMeter({ metric, value, showLabels = false }:
+  { metric: Metric; value: number; showLabels?: boolean }) {
+  const { p50, p75, p90 } = metric;
+  const lowerIsBetter = metric.direction === 'lower';
+  const goal = lowerIsBetter ? metric.target_high : metric.target_low;
+
+  // Build the scale from whatever anchors exist, padded so nothing sits on an edge.
+  const anchors = [p50, p75, p90, goal, value].filter((n): n is number => n != null);
+  if (anchors.length < 2) return null;
+  let lo = Math.min(...anchors);
+  let hi = Math.max(...anchors);
+  const pad = (hi - lo) * 0.18 || Math.abs(hi * 0.1) || 1;
+  lo -= pad; hi += pad;
+
+  // Always draw worse-to-better left-to-right, whichever way the metric runs.
+  const pos = (v: number) => {
+    const raw = ((v - lo) / (hi - lo)) * 100;
+    return Math.max(0, Math.min(100, lowerIsBetter ? 100 - raw : raw));
+  };
+
+  const ticks: [string, number][] = [];
+  if (p50 != null) ticks.push(['50', p50]);
+  if (p75 != null) ticks.push(['75', p75]);
+  if (p90 != null) ticks.push(['90', p90]);
+
+  const reached = goal != null && (lowerIsBetter ? value <= goal : value >= goal);
+
   return (
-    <span className="rng">
-      <span className="bar">
-        <span className="zone" style={{ left: `${zoneL}%`, width: `${Math.max(2, zoneR - zoneL)}%` }} />
-        <span className="pin" style={{ left: `${pos(value)}%` }} />
+    <span className={`pct-meter ${showLabels ? 'labelled' : ''}`}>
+      <span className="track">
+        {p50 != null && <span className="band" style={{ left: `${pos(p50)}%`, right: 0 }} />}
+        {ticks.map(([l, v]) => (
+          <span className="tick" key={l} style={{ left: `${pos(v)}%` }}>
+            {showLabels && <i>{l}</i>}
+          </span>
+        ))}
+        {goal != null && (
+          <span className={`goalpin ${reached ? 'met' : ''}`} style={{ left: `${pos(goal)}%` }}
+                title={`Goal ${goal}`} />
+        )}
+        <span className={`you ${reached ? 'met' : ''}`} style={{ left: `${pos(value)}%` }}
+              title={`You: ${value}`} />
       </span>
     </span>
   );
+}
+
+/** Roughly where a value falls, for a one-word read. */
+function percentileOf(metric: Metric, value: number): number | null {
+  const { p50, p75, p90 } = metric;
+  if (p50 == null || p75 == null || p90 == null) return null;
+  const better = (a: number, b: number) =>
+    metric.direction === 'lower' ? a <= b : a >= b;
+  if (better(value, p90)) return 90;
+  if (better(value, p75)) return 75;
+  if (better(value, p50)) return 50;
+  return 25;
 }
 
 /** The goal in words, rendered in its own column so rows stay aligned. */
@@ -290,10 +334,14 @@ function MetricRows({ metrics, sheet, onOpen, why }:
             <span className="u">{latest?.value != null ? m.unit : 'not recorded'}</span>
             <span className="mcell">
               {latest?.value != null && (m.target_low != null || m.target_high != null) && (
-                <RangeMeter value={Number(latest.value)} low={m.target_low} high={m.target_high} />
+                <RangeMeter metric={m} value={Number(latest.value)} />
               )}
             </span>
-            <span className="goal">{targetText(m)}</span>
+            <span className="goal">
+              {latest?.value != null && percentileOf(m, Number(latest.value)) != null
+                ? `${percentileOf(m, Number(latest.value))}th`
+                : targetText(m)}
+            </span>
             <span className="whycell" onClick={(e) => e.stopPropagation()}>
               {why && m.why ? <Tip body={m.why} /> : null}
             </span>

@@ -35,6 +35,10 @@ export interface Metric {
   test_group: string;
   target_source: string;
   why: string;
+  p50: number | null;
+  p75: number | null;
+  p90: number | null;
+  percentile_source: string;
   focus_order: number;
   focus_goal: string;
   is_public: boolean;
