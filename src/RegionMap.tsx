@@ -5,7 +5,7 @@ import worldTopo from 'world-atlas/countries-110m.json';
 import usTopo from 'us-atlas/states-10m.json';
 import chinaGeo from 'china-geojson';
 import { AtlasEntry } from './types';
-import { insertRows, deleteRow } from './db';
+import { insertRows, deleteRow, updateAtlas } from './db';
 import { useEscape } from './useEscape';
 import { NATIONAL_PARKS } from './catalog';
 
@@ -74,7 +74,8 @@ export function RegionMap({
 }) {
   // Optimistic overlay: what the user has clicked but the server has not
   // confirmed yet. Without this every click waits on a full sheet reload.
-  const [pending, setPending] = useState<Record<string, boolean>>({});
+  // 'visited' | 'planned' | absent. Optimistic so the fill flips instantly.
+  const [pending, setPending] = useState<Record<string, string | null>>({});
   const [hover, setHover] = useState<string | null>(null);
   const w = big ? 1100 : 760;
   const h = big ? (kind === 'country' ? 560 : kind === 'state' ? 640 : 760) : (kind === 'country' ? 380 : kind === 'state' ? 440 : 520);
@@ -111,20 +112,24 @@ export function RegionMap({
   }, [kind, w, h]);
 
   const rows = useMemo(() => new Map(visited.map((v) => [v.name, v])), [visited]);
-  const isOn = (label: string) =>
-    label in pending ? pending[label] : rows.has(label);
+  const stateOf = (label: string): string | null =>
+    label in pending ? pending[label] : (rows.get(label)?.state ?? null);
+  const isOn = (label: string) => stateOf(label) !== null;
   const missing = visited.filter((v) => !geom.labels.has(v.name)).map((v) => v.name);
 
-  const toggle = async (label: string) => {
+  /** Single click cycles visited/off; double click marks it planned. */
+  const setState = async (label: string, next: string | null) => {
     const row = rows.get(label);
-    const next = !isOn(label);
-    setPending((p) => ({ ...p, [label]: next }));   // paint immediately
-    onOptimistic?.(label, next);                    // and everywhere else
+    setPending((p) => ({ ...p, [label]: next }));
+    onOptimistic?.(label, next !== null);
     try {
-      if (row && !next) await deleteRow('cs_atlas', row.id);
-      else if (!row && next) {
+      if (next === null) {
+        if (row) await deleteRow('cs_atlas', row.id);
+      } else if (row) {
+        await updateAtlas(row.id, { state: next });
+      } else {
         await insertRows('cs_atlas', [{
-          user_id: userId, kind, name: label, detail: '',
+          user_id: userId, kind, name: label, detail: '', state: next,
           happened_on: null, years: null, display_order: 0, is_public: true,
         }]);
       }
@@ -134,24 +139,43 @@ export function RegionMap({
     }
   };
 
+  const toggle = (label: string) =>
+    setState(label, stateOf(label) === 'visited' ? null : 'visited');
+  const plan = (label: string) =>
+    setState(label, stateOf(label) === 'planned' ? null : 'planned');
+
   // Labels only where they will actually fit.
   const minArea = kind === 'country' ? (big ? 900 : 2200) : big ? 300 : 700;
 
   return (
     <div className="map-wrap">
       <svg viewBox={`0 0 ${w} ${h}`} className={`worldmap ${big ? 'big' : ''}`} role="img"
-           aria-label={`${visited.length} visited; click to toggle`}>
+           aria-label={`${visited.length} marked; click to toggle, double-click to plan`}>
+        <defs>
+          <pattern id="hatch" width="6" height="6" patternTransform="rotate(45)"
+                   patternUnits="userSpaceOnUse">
+            <rect width="6" height="6" fill="#2A2416" />
+            <line x1="0" y1="0" x2="0" y2="6" stroke="#D9A03C" strokeWidth="2.4" />
+          </pattern>
+        </defs>
         {geom.shapes.map((p) => (
           <path key={p.key} d={p.d}
-                className={`c ${kind === 'park' ? 'base' : ''} ${kind !== 'park' && isOn(p.label) ? 'on' : ''}`}
-                onClick={() => kind !== 'park' && toggle(p.label)}>
-            <title>{p.label}{kind !== 'park' && isOn(p.label) ? ' — visited' : ''}</title>
+                className={`c ${kind === 'park' ? 'base' : ''} ${
+                  kind !== 'park' && stateOf(p.label) ? stateOf(p.label) : ''}`}
+                onClick={() => kind !== 'park' && toggle(p.label)}
+                onDoubleClick={(e) => { e.preventDefault(); if (kind !== 'park') plan(p.label); }}>
+            <title>
+              {p.label}
+              {kind !== 'park' && stateOf(p.label) === 'visited' ? ' — visited' : ''}
+              {kind !== 'park' && stateOf(p.label) === 'planned' ? ' — planning to go' : ''}
+            </title>
           </path>
         ))}
         {kind === 'park' && parkPts.map((pk) => (
           <g key={pk.name}
-             className={`park ${isOn(pk.name) ? 'on' : ''} ${hover === pk.name ? 'hot' : ''}`}
+             className={`park ${stateOf(pk.name) ?? ''} ${hover === pk.name ? 'hot' : ''}`}
              onClick={() => toggle(pk.name)}
+             onDoubleClick={(e) => { e.preventDefault(); plan(pk.name); }}
              onMouseEnter={() => setHover(pk.name)}
              onMouseLeave={() => setHover((h) => (h === pk.name ? null : h))}>
             <circle cx={pk.x} cy={pk.y} r={big ? 6 : 4.5} />
@@ -162,14 +186,14 @@ export function RegionMap({
         {/* Every park is labelled, so you can read the map before clicking. */}
         {kind === 'park' && parkPts.map((pk) => (
           <text key={`pl${pk.name}`} x={pk.x} y={pk.y - (big ? 10 : 8)} textAnchor="middle"
-                className={`ml park-label ${isOn(pk.name) ? 'on' : ''} ${hover === pk.name ? 'hot' : ''}`}
+                className={`ml park-label ${stateOf(pk.name) ?? ''} ${hover === pk.name ? 'hot' : ''}`}
                 style={{ fontSize: big ? 9.5 : 7.5 }}>
             {pk.name}
           </text>
         ))}
         {kind !== 'park' && geom.shapes.filter((p) => p.area > minArea && Number.isFinite(p.cx)).map((p) => (
           <text key={`t${p.key}`} x={p.cx} y={p.cy} textAnchor="middle"
-                className={`ml ${isOn(p.label) ? 'on' : ''}`}
+                className={`ml ${stateOf(p.label) ?? ''}`}
                 style={{ fontSize: big ? 11 : 9 }}>
             {p.label}
           </text>
@@ -193,7 +217,11 @@ export function MapModal({
     <div className="scrim" onClick={onClose}>
       <div className="modal widest" onClick={(e) => e.stopPropagation()}>
         <h2>{title}</h2>
-        <p className="hint">{visited.length} marked. Click anywhere on the map to add or remove.</p>
+        <p className="hint">
+          {visited.filter((v) => v.state !== 'planned').length} visited ·{' '}
+          {visited.filter((v) => v.state === 'planned').length} planned.
+          Click to mark visited, double-click to mark as somewhere you plan to go.
+        </p>
         <RegionMap kind={kind} visited={visited} userId={userId} onChanged={onChanged}
                    onOptimistic={onOptimistic} big />
         <div className="modal-actions"><button className="btn" onClick={onClose}>Close</button></div>

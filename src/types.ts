@@ -99,6 +99,7 @@ export interface AtlasEntry {
   detail: string;
   happened_on: string | null;
   years: number | null;
+  state: string;
   display_order: number;
   is_public: boolean;
 }

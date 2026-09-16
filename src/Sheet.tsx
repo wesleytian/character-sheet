@@ -514,7 +514,8 @@ export function Sheet({
       .filter(([k, on]) => on && k.startsWith(`${kind}:`) && !have.has(k.slice(kind.length + 1)))
       .map(([k]) => ({
         id: `pending-${k}`, kind, name: k.slice(kind.length + 1), detail: '',
-        happened_on: null, years: null, display_order: 0, is_public: true,
+        state: 'visited', happened_on: null, years: null,
+        display_order: 0, is_public: true,
       } as AtlasEntry));
     return [...rows.filter((r) => atlasPending[`${kind}:${r.name}`] !== false), ...added]
       .sort((a, b) => a.display_order - b.display_order || a.name.localeCompare(b.name));
@@ -618,6 +619,7 @@ export function Sheet({
   );
 
   const countries = at('country');
+  const been = (list: AtlasEntry[]) => list.filter((a) => a.state !== 'planned');
   const byContinent = Object.keys(CONTINENTS).map((c) => ({
     name: c,
     have: countries.filter((x) => CONTINENT_OF[x.name] === c).length,
@@ -628,7 +630,7 @@ export function Sheet({
     ['character', 'Health', ''],
     ['skills', 'Skills', String(derived.length)],
     ['quests', 'Quests', `${sheet.quests.filter((q) => q.status === 'done').length}/${sheet.quests.length}`],
-    ['world', 'World', String(countries.length)],
+    ['world', 'World', String(been(countries).length)],
     ['people', 'People', ''],
     ['tally', 'Tally', String(sheet.counters.filter((c) => c.value != null).length)],
     ['vault', 'Vault', ''],
@@ -974,7 +976,7 @@ export function Sheet({
             ))}
 
             <div className="sec">
-              Countries <span className="count">{countries.length} of {TOTAL_COUNTRIES}
+              Countries <span className="count">{been(countries).length} of {TOTAL_COUNTRIES}
                 <button className="add" style={{ marginLeft: 8 }} onClick={() => setMapOpen({ kind: 'country', title: 'Countries visited' })}>map</button>
                 <button className="add" style={{ marginLeft: 6 }} onClick={() => onPick('country')}>list</button>
               </span>
@@ -993,7 +995,7 @@ export function Sheet({
 
           <div>
             <div className="sec">
-              US States <span className="count">{at('state').length} of {TOTAL_STATES}
+              US States <span className="count">{been(at('state')).length} of {TOTAL_STATES}
                 <button className="add" style={{ marginLeft: 8 }} onClick={() => setMapOpen({ kind: 'state', title: 'US states visited' })}>map</button>
                 <button className="add" style={{ marginLeft: 6 }} onClick={() => onPick('state')}>list</button>
               </span>
@@ -1003,7 +1005,7 @@ export function Sheet({
             <ChipList items={at('state')} onRemove={removeAtlas} />
 
             <div className="sec">
-              Chinese Provinces <span className="count">{at('province').length} of {TOTAL_PROVINCES}
+              Chinese Provinces <span className="count">{been(at('province')).length} of {TOTAL_PROVINCES}
                 <button className="add" style={{ marginLeft: 8 }} onClick={() => setMapOpen({ kind: 'province', title: 'Chinese provinces visited' })}>map</button>
                 <button className="add" style={{ marginLeft: 6 }} onClick={() => onPick('province')}>list</button>
               </span>
@@ -1013,7 +1015,7 @@ export function Sheet({
             <ChipList items={at('province')} onRemove={removeAtlas} />
 
             <div className="sec">
-              National Parks <span className="count">{at('park').length} of {TOTAL_PARKS}
+              National Parks <span className="count">{been(at('park')).length} of {TOTAL_PARKS}
                 <button className="add" style={{ marginLeft: 8 }} onClick={() => setMapOpen({ kind: 'park', title: 'US national parks' })}>map</button>
                 <button className="add" style={{ marginLeft: 6 }} onClick={() => onPick('park')}>list</button>
               </span>
