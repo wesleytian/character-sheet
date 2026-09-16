@@ -1005,9 +1005,18 @@ button.skill-name:hover { color: var(--gold); }
 }
 
 /* ---------- masked figures ---------- */
+/* Blur has to sit on a block so short strings still get a real footprint,
+   otherwise a two-character value all but disappears rather than reading as
+   deliberately hidden. */
 .masked {
-  filter: blur(7px); user-select: none; pointer-events: none;
-  opacity: .85; transition: filter .15s;
+  display: inline-block; min-width: 4.5em; text-align: right;
+  filter: blur(6px); user-select: none; pointer-events: none;
+  opacity: .9; transition: filter .15s;
+}
+.hs-n .masked { min-width: 5.5em; filter: blur(11px); }
+span.cnum.masked {
+  border-bottom: 1px solid var(--edge); padding: 1px 4px;
+  color: var(--gold-lit);
 }
 .vault-lock-bar {
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
@@ -1029,3 +1038,13 @@ button.skill-name:hover { color: var(--gold); }
 .archive-btn { font-size: 12px; color: var(--faint); border-bottom: 1px solid var(--edge-lit); }
 .archive-btn:hover { color: var(--ember); }
 .metric-row .tip { margin-left: 6px; }
+
+/* ---------- five-year trajectory ---------- */
+.traj { margin-top: 14px; border-top: 1px solid var(--edge); padding-top: 10px; }
+.traj .thin {
+  font-family: var(--body); font-weight: 700; font-size: 8.5px; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--ember);
+  border: 1px solid rgba(180,72,60,.5); padding: 2px 7px; margin-left: auto;
+}
+.traj-rows { margin-top: 5px; }
+.traj-note { margin: 7px 0 0; font-size: 13px; color: var(--faint); }

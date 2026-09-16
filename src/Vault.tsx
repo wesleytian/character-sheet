@@ -191,7 +191,9 @@ export function Vault({
                   <div className="row counter" key={r.id}>
                     <span className="k">{r.label}</span>
                     {locked
-                      ? <span className="cnum num wide masked">{money(r.value, r.unit)}</span>
+                      ? <span className="cnum num wide masked">
+                          {r.value == null ? '—' : money(r.value, r.unit)}
+                        </span>
                       : <MoneyInput value={r.value} unit={r.unit}
                                     onCommit={async (v) => { await setMoney(r.id, v); onChanged(); }} />}
                     <span className="d">{r.unit === 'USD' ? '$' : r.unit}</span>
@@ -225,7 +227,9 @@ export function Vault({
                       onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
                     />
                     {locked
-                      ? <span className="cnum num wide masked">{money(i.value == null ? null : Number(i.value), 'USD')}</span>
+                      ? <span className="cnum num wide masked">
+                          {i.value == null ? '—' : money(Number(i.value), 'USD')}
+                        </span>
                       : <MoneyInput
                           value={i.value == null ? null : Number(i.value)}
                           unit="USD"

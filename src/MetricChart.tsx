@@ -3,6 +3,8 @@ import { Metric, Measurement } from './types';
 import { setMetricGoal, setMetricFocus } from './db';
 import { useEscape } from './useEscape';
 import { Tip } from './Tip';
+import { trajectory } from './trajectoryMath';
+import { TrajectoryBlock } from './Trajectory';
 
 const W = 640;
 const H = 240;
@@ -174,6 +176,11 @@ export function MetricChart({
             </div>
           ))}
         </div>
+
+        {(() => {
+          const t = trajectory(metric.key, measurements);
+          return t ? <TrajectoryBlock metric={metric} t={t} /> : null;
+        })()}
 
         <div className="goal-edit">
           <div className="goal-head">
