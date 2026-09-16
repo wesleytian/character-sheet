@@ -34,7 +34,6 @@ export function QuestEdit({
   };
 
   const remove = async () => {
-    if (!confirm(`Delete "${quest.title}"? This cannot be undone.`)) return;
     setBusy(true);
     try { await deleteRow('cs_quests', quest.id); onSaved(); onClose(); }
     catch (e) { setError(e instanceof Error ? e.message : String(e)); setBusy(false); }

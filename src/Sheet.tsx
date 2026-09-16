@@ -506,7 +506,6 @@ export function Sheet({
     onChanged();
   };
   const removeAtlas = async (a: AtlasEntry) => {
-    if (!confirm(`Remove ${a.name}?`)) return;
     await deleteRow('cs_atlas', a.id);
     onChanged();
   };
@@ -558,7 +557,6 @@ export function Sheet({
     onChanged();
   };
   const drop = async (q: Quest) => {
-    if (!confirm(`Delete "${q.title}"?`)) return;
     await deleteRow('cs_quests', q.id);
     onChanged();
   };
