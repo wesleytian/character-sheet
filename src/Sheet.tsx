@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Sheet as SheetData, Quest, Metric, AtlasEntry } from './types';
 import { deriveSkill, rankOf, DerivedSkill } from './skills';
-import { toggleMilestone, setQuestStatus, deleteRow, renameQuest, setPinned, setSkillHidden, insertRows } from './db';
+import { toggleMilestone, setQuestStatus, deleteRow, renameQuest, setPinned, setSkillHidden, insertRows, updateRow } from './db';
 import { AddKind } from './Modal';
 import { PickerKind } from './Picker';
 import { Timeline } from './Timeline';
@@ -456,6 +456,7 @@ export function Sheet({
   const [popped, setPopped] = useState<string | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
   const [overStatus, setOverStatus] = useState<string | null>(null);
+  const [overQuest, setOverQuest] = useState<{ id: string; after: boolean } | null>(null);
   const [toast, setToast] = useState<ToastMsg | null>(null);
   const [cardEdit, setCardEdit] = useState(false);
   const [newAcc, setNewAcc] = useState('');
@@ -590,11 +591,50 @@ export function Sheet({
   };
 
   const questRow = (q: Quest) => (
-    <div className={`quest ${q.status} ${editMode ? 'editing' : ''} ${dragId === q.id ? 'dragging' : ''}`}
+    <div className={
+           `quest ${q.status}${editMode ? ' editing' : ''}` +
+           (dragId === q.id ? ' dragging' : '') +
+           (overQuest?.id === q.id ? (overQuest.after ? ' drop-after' : ' drop-before') : '')
+         }
          key={q.id}
+         // Outside edit mode the whole row drags. In edit mode the title is a
+         // text field, so only the grip does - otherwise selecting text starts
+         // a drag instead.
          draggable={!editMode}
-         onDragStart={(e) => { setDragId(q.id); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', q.id); }}
-         onDragEnd={() => { setDragId(null); setOverStatus(null); }}>
+         onDragStart={(e) => {
+           if (editMode) return;
+           setDragId(q.id);
+           e.dataTransfer.effectAllowed = 'move';
+           e.dataTransfer.setData('text/plain', q.id);
+         }}
+         onDragEnd={() => { setDragId(null); setOverStatus(null); setOverQuest(null); }}
+         onDragOver={(e) => {
+           if (!dragId || dragId === q.id) return;
+           e.preventDefault();
+           e.dataTransfer.dropEffect = 'move';
+           const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+           setOverQuest({ id: q.id, after: e.clientY > r.top + r.height / 2 });
+         }}
+         onDragLeave={() => setOverQuest((v) => (v?.id === q.id ? null : v))}
+         onDrop={(e) => {
+           e.preventDefault();
+           e.stopPropagation();
+           const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+           dropOnQuest(q, e.clientY > r.top + r.height / 2);
+         }}>
+      {editMode && (
+        <span
+          className="qgrip"
+          title="Drag to move"
+          draggable
+          onDragStart={(e) => {
+            setDragId(q.id);
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', q.id);
+          }}
+          onDragEnd={() => { setDragId(null); setOverStatus(null); setOverQuest(null); }}
+        >⠿</span>
+      )}
       <button className={`bx ${q.status} ${popped === q.id ? 'pop' : ''}`}
               onClick={() => cycle(q)} aria-label={`Mark ${q.title}`}
               title={q.kind === 'bucket'
@@ -642,6 +682,28 @@ export function Sheet({
     if (!q || q.status === status) return;
     if (status === 'done') celebrate(q);
     await setQuestStatus(id, status);
+    onChanged();
+  };
+
+  /** Drop onto a row: take that row's status and slot in beside it. */
+  const dropOnQuest = async (target: Quest, after: boolean) => {
+    const id = dragId;
+    setDragId(null); setOverQuest(null); setOverStatus(null);
+    if (!id || id === target.id) return;
+    const moving = sheet.quests.find((q) => q.id === id);
+    if (!moving) return;
+
+    const siblings = sheet.quests
+      .filter((q) => q.kind === target.kind && q.id !== id)
+      .sort((a, b) => a.display_order - b.display_order);
+    const at = siblings.findIndex((q) => q.id === target.id);
+    siblings.splice(after ? at + 1 : at, 0, moving);
+
+    await Promise.all(siblings.map((q, i) => updateRow('cs_quests', q.id, { display_order: i })));
+    if (moving.status !== target.status) {
+      if (target.status === 'done') celebrate(moving);
+      await setQuestStatus(id, target.status);
+    }
     onChanged();
   };
 

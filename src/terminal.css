@@ -1247,3 +1247,18 @@ button, a, .tab, .chip, .pick, .rung, .seg, .help,
 }
 .acc-add input:focus { border-color: var(--gold); }
 .acc-add input::placeholder { color: var(--faint); font-style: italic; }
+
+/* ---------- quest drag ---------- */
+.qgrip {
+  flex: none; color: var(--faint); font-size: 13px; cursor: grab;
+  padding: 0 2px; user-select: none;
+}
+.quest:hover .qgrip { color: var(--dim); }
+.qgrip:active { cursor: grabbing; }
+.quest { position: relative; }
+.quest.drop-before::before, .quest.drop-after::after {
+  content: ""; position: absolute; left: 0; right: 0; height: 2px;
+  background: var(--gold); box-shadow: 0 0 6px rgba(220,175,137,.8); z-index: 2;
+}
+.quest.drop-before::before { top: -1px; }
+.quest.drop-after::after { bottom: -1px; }
