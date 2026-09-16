@@ -123,13 +123,13 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 /* Value cells are fixed-width so numbers line up; a cell holding a meter has
    to grow instead, or the bar collapses to its minimum. */
 .row .v { flex: none; min-width: 7.5ch; text-align: right; }
-.row .v.grow { flex: 1; min-width: 60px; text-align: left; }
+.row .v.grow { flex: 1 1 0; min-width: 120px; text-align: left; }
 .metric-row .u { color: var(--dim); font-size: 12.5px; text-align: left;
   overflow: hidden; text-overflow: ellipsis; }
 .row .v b { color: var(--ink); font-weight: 600; }
 
 /* ---------- meters ---------- */
-.meter { display: flex; align-items: center; gap: 10px; }
+.meter { display: flex; align-items: center; gap: 10px; width: 100%; }
 .meter .track {
   flex: 1; height: 9px; background: var(--track);
   border: 1px solid var(--edge); position: relative; overflow: hidden;
@@ -212,6 +212,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .tip-body {
   position: absolute; z-index: 90; right: 0; left: auto; top: calc(100% + 6px);
   width: max-content; max-width: min(360px, 70vw);
+  white-space: normal;          /* rows are nowrap; the panel must not inherit it */
   background: var(--panel-lift);
   border: 1px solid var(--edge-lit); padding: 10px 12px;
   color: var(--ink-soft); font-size: 14.5px; line-height: 1.5;
