@@ -78,11 +78,7 @@ function InboxModal({
                       <span className="note-title">{n.title}</span>
                       {n.severity && <span className={`sev ${n.severity}`}>{n.severity}</span>}
                       <button className="qdel" title="Delete for good"
-                              onClick={async () => {
-                                if (!confirm(`Delete "${n.title}"?`)) return;
-                                await deleteRow('cs_notes', n.id);
-                                onChanged();
-                              }}>×</button>
+                              onClick={async () => { await deleteRow('cs_notes', n.id); onChanged(); }}>×</button>
                     </div>
                     {n.body && <p className="note-body">{n.body}</p>}
                     {n.answer && (
