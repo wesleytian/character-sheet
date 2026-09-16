@@ -194,8 +194,9 @@ function FocusRow({ metric, sheet, onOpen }:
 }
 
 /** A permanently blank row at the end of a list: type, press Enter, done. */
-function NewQuest({ kind, status, track, userId, onAdded }:
-  { kind: string; status: string; track: string; userId: string; onAdded: () => void }) {
+function NewQuest({ kind, status, track, userId, nextOrder, onAdded }:
+  { kind: string; status: string; track: string; userId: string;
+    nextOrder: number; onAdded: () => void }) {
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -208,7 +209,7 @@ function NewQuest({ kind, status, track, userId, onAdded }:
         user_id: userId, title, kind, track, phase: '', status,
         completed_on: status === 'done' ? new Date().toISOString().slice(0, 10) : null,
         progress_current: null, progress_total: null, note: '',
-        display_order: 999, is_public: true, pinned: false,
+        display_order: nextOrder, is_public: true, pinned: false,
       }]);
       setText('');
       onAdded();
@@ -625,13 +626,18 @@ export function Sheet({
   });
 
   const kindFor = (list: Quest[]) => list[0]?.kind ?? 'main';
+  // One past the highest order in view, so a new quest lands at the bottom
+  // rather than tying with everything else on a shared default.
+  const nextOrderFor = (list: Quest[]) =>
+    (list.length ? Math.max(...list.map((q) => q.display_order)) : 0) + 1;
 
   const questGroups = (list: Quest[], only?: string[]) => (
     <>
       {([['active', 'In progress'], ['locked', 'Not started'], ['done', 'Done']] as const)
         .filter(([st]) => !only || only.includes(st))
         .map(([st, label]) => {
-          const rows = list.filter((q) => q.status === st);
+          const rows = list.filter((q) => q.status === st)
+            .sort((a, b) => a.display_order - b.display_order);
           // Finished quests read as a history, so newest first; undated last.
           if (st === 'done') {
             rows.sort((a, b) => {
@@ -650,7 +656,8 @@ export function Sheet({
               </div>
               {rows.map(questRow)}
               {rows.length === 0 && dragId && <div className="qempty">Drop here</div>}
-              <NewQuest kind={kindFor(list)} status={st} track="" onAdded={onChanged} userId={userId} />
+              <NewQuest kind={kindFor(list)} status={st} track=""
+                        nextOrder={nextOrderFor(list)} onAdded={onChanged} userId={userId} />
             </div>
           );
         })}
@@ -981,7 +988,8 @@ export function Sheet({
                       </div>
                       {rows.filter((q) => q.status !== 'done').map(questRow)}
                       {rows.filter((q) => q.status === 'done').map(questRow)}
-                      <NewQuest kind="side" status="locked" track={t} onAdded={onChanged} userId={userId} />
+                      <NewQuest kind="side" status="locked" track={t}
+                                nextOrder={nextOrderFor(rows)} onAdded={onChanged} userId={userId} />
                     </div>
                   );
                 })}
@@ -1009,7 +1017,8 @@ export function Sheet({
                       </div>
                       {rows.filter((q) => q.status !== 'done').map(questRow)}
                       {rows.filter((q) => q.status === 'done').map(questRow)}
-                      <NewQuest kind="bucket" status="locked" track={t} onAdded={onChanged} userId={userId} />
+                      <NewQuest kind="bucket" status="locked" track={t}
+                                nextOrder={nextOrderFor(rows)} onAdded={onChanged} userId={userId} />
                     </div>
                   );
                 })}
