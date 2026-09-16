@@ -6,7 +6,7 @@ import {
 import { SPORT_LADDER } from './catalog';
 
 export async function loadSheet(userId: string): Promise<Sheet> {
-  const [profile, metrics, measurements, skills, milestones, quests, atlas, medical, documents, counters, events, money, items, notes] =
+  const [profile, metrics, measurements, skills, milestones, quests, atlas, medical, documents, counters, events, money, items, notes, people] =
     await Promise.all([
       supabase.from('cs_profile').select('*').eq('user_id', userId).maybeSingle(),
       supabase.from('cs_metrics').select('*').eq('user_id', userId).order('display_order'),
@@ -22,9 +22,10 @@ export async function loadSheet(userId: string): Promise<Sheet> {
       supabase.from('cs_money').select('*').eq('user_id', userId).order('display_order'),
       supabase.from('cs_items').select('*').eq('user_id', userId).order('created_at'),
       supabase.from('cs_notes').select('*').eq('user_id', userId).order('display_order'),
+      supabase.from('cs_people').select('*').eq('user_id', userId).order('display_order'),
     ]);
 
-  const firstError = [profile, metrics, measurements, skills, milestones, quests, atlas, medical, documents, counters, events, money, items, notes]
+  const firstError = [profile, metrics, measurements, skills, milestones, quests, atlas, medical, documents, counters, events, money, items, notes, people]
     .find((r) => r.error)?.error;
   if (firstError) throw new Error(firstError.message);
 
@@ -44,6 +45,7 @@ export async function loadSheet(userId: string): Promise<Sheet> {
     money: money.data ?? [],
     items: items.data ?? [],
     notes: notes.data ?? [],
+    people: people.data ?? [],
   };
 }
 
@@ -474,5 +476,10 @@ export async function updateAtlas(id: string, patch: Record<string, unknown>) {
 export async function setTabPrefs(userId: string, order: string[], muted: string[]) {
   const { error } = await supabase
     .from('cs_profile').update({ tab_order: order, tab_muted: muted }).eq('user_id', userId);
+  if (error) throw new Error(error.message);
+}
+
+export async function updateRow(table: string, id: string, patch: Record<string, unknown>) {
+  const { error } = await supabase.from(table).update(patch).eq('id', id);
   if (error) throw new Error(error.message);
 }

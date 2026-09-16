@@ -164,6 +164,11 @@ export interface NoteRow {
   status: string; answer: string; severity: string; display_order: number;
 }
 
+export interface PersonRow {
+  id: string; name: string; relation: string; note: string;
+  display_order: number; is_public: boolean;
+}
+
 export interface Sheet {
   profile: Profile | null;
   metrics: Metric[];
@@ -179,6 +184,7 @@ export interface Sheet {
   money: MoneyRow[];
   items: ItemRow[];
   notes: NoteRow[];
+  people: PersonRow[];
 }
 
 export const EMPTY_SHEET: Sheet = {
@@ -196,4 +202,5 @@ export const EMPTY_SHEET: Sheet = {
   money: [],
   items: [],
   notes: [],
+  people: [],
 };

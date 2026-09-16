@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Sheet as SheetData, Quest, Metric, AtlasEntry } from './types';
 import { deriveSkill, rankOf, DerivedSkill } from './skills';
-import { toggleMilestone, setQuestStatus, deleteRow, renameQuest, setFriendOrder, setPinned, setSkillHidden } from './db';
+import { toggleMilestone, setQuestStatus, deleteRow, renameQuest, setPinned, setSkillHidden } from './db';
 import { AddKind } from './Modal';
 import { PickerKind } from './Picker';
 import { Timeline } from './Timeline';
@@ -17,6 +17,7 @@ import { Counters } from './Counters';
 import { Tip } from './Tip';
 import { InboxButton } from './Inbox';
 import { TabBar } from './TabBar';
+import { People } from './People';
 import { DueTests } from './DueTests';
 import { Toast, ToastMsg } from './Toast';
 import { HealthScoreCard } from './HealthScore';
@@ -24,7 +25,6 @@ import { Vault } from './Vault';
 import { VaultLock, isUnlocked } from './VaultLock';
 import { RegionMap, MapModal, MapKind } from './RegionMap';
 import { LabsModal } from './LabsModal';
-import { loadFriends, refreshFriends, Friend } from './crm';
 import { CONTINENTS, CONTINENT_OF, TOTAL_COUNTRIES, TOTAL_STATES, TOTAL_PROVINCES, TOTAL_PARKS } from './catalog';
 
 /** Epithets for the auto-generated title under the name. */
@@ -320,91 +320,6 @@ function ChipList({ items, onRemove, icons }:
   );
 }
 
-function Fellowship({ order, userId, onChanged }:
-  { order: string[]; userId: string; onChanged: () => void }) {
-  const [friends, setFriends] = useState<Friend[] | null | 'loading'>('loading');
-  const [drag, setDrag] = useState<string | null>(null);
-  const [over, setOver] = useState<{ name: string; after: boolean } | null>(null);
-  useEffect(() => { loadFriends(20).then(setFriends); }, []);
-
-  if (friends === 'loading') return <p className="d">Reading the CRM…</p>;
-  if (friends === null)
-    return (
-      <p className="offline">
-        CRM is not answering on 127.0.0.1:5555. Start it with <code>~/projects/crm/run.sh</code> and reload.
-      </p>
-    );
-  if (!friends.length) return <p className="d">No tier-1 or starred contacts found.</p>;
-
-  // Manual order wins where it exists; everyone else keeps their CRM rank.
-  const ranked = [...friends].sort((a, b) => {
-    const ia = order.indexOf(a.name), ib = order.indexOf(b.name);
-    if (ia !== -1 && ib !== -1) return ia - ib;
-    if (ia !== -1) return -1;
-    if (ib !== -1) return 1;
-    return (b.interaction_score_365 ?? 0) - (a.interaction_score_365 ?? 0);
-  });
-
-  const drop = async (target: string, after: boolean) => {
-    const from = drag;
-    setDrag(null); setOver(null);
-    if (!from || from === target) return;
-    const names = ranked.map((f) => f.name).filter((n) => n !== from);
-    const at = names.indexOf(target);
-    names.splice(after ? at + 1 : at, 0, from);
-    await setFriendOrder(userId, names);
-    onChanged();
-  };
-
-  return (
-    <>
-      <div className="friend-grid">
-        {ranked.map((f) => (
-          <span
-            key={f.id}
-            className={
-              `friend-name${drag === f.name ? ' dragging' : ''}` +
-              (over?.name === f.name ? (over.after ? ' drop-after' : ' drop-before') : '')
-            }
-            draggable
-            onDragStart={(e) => {
-              setDrag(f.name);
-              e.dataTransfer.effectAllowed = 'move';
-              e.dataTransfer.setData('text/plain', f.name);
-            }}
-            onDragEnd={() => { setDrag(null); setOver(null); }}
-            onDragOver={(e) => {
-              e.preventDefault();
-              e.dataTransfer.dropEffect = 'move';   // stops the browser showing a "+"
-              const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-              setOver({ name: f.name, after: e.clientX > r.left + r.width / 2 });
-            }}
-            onDragLeave={() => setOver((v) => (v?.name === f.name ? null : v))}
-            onDrop={(e) => {
-              e.preventDefault();
-              const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-              drop(f.name, e.clientX > r.left + r.width / 2);
-            }}
-          >
-            {f.name}
-          </span>
-        ))}
-      </div>
-      <div className="src-line">
-        <button className="src-link" onClick={() => { refreshFriends(); loadFriends(20).then(setFriends); }}>
-          refresh
-        </button>
-        <Tip body={<>Your twenty most-contacted people over the last year, scored as
-          <b> messages + call minutes &times; 3</b>. Taken live from your CRM, and deliberately
-          not based on tier or starred, which are labels you set by hand.</>}>
-          <span className="d">ranked by contact</span>
-        </Tip>
-        <a href="http://127.0.0.1:5555" target="_blank" rel="noopener" className="src-link">open CRM</a>
-      </div>
-    </>
-  );
-}
-
 export function Sheet({
   sheet,
   onChanged,
@@ -635,7 +550,7 @@ export function Sheet({
     ['quests', 'Quests', `${sheet.quests.filter((q) => q.status === 'done').length}/${sheet.quests.length}`],
     ['world', 'World', String(been(countries).length)],
     ['people', 'People', ''],
-    ['tally', 'Tally', String(sheet.counters.filter((c) => c.value != null).length)],
+    ['tally', 'Counts', String(sheet.counters.filter((c) => c.value != null).length)],
     ['vault', 'Vault', ''],
     ['chronicle', 'Chronicle', ''],
   ] as const;
@@ -1048,14 +963,14 @@ export function Sheet({
       {/* ---------------- CHRONICLE ---------------- */}
       {view === 'people' && (
         <>
-          <div className="sec">Friends <span className="count">most contact, last 12 months</span></div>
-          <Fellowship order={p?.friend_order ?? []} userId={userId} onChanged={onChanged} />
+          <div className="sec">People</div>
+          <People people={sheet.people} userId={userId} onChanged={onChanged} />
         </>
       )}
 
       {view === 'tally' && (
         <>
-          <div className="sec">Tally <span className="count">click a number to set it</span></div>
+          <div className="sec">Counts</div>
           <Counters counters={sheet.counters} atlas={sheet.atlas} userId={userId} onChanged={onChanged} />
         </>
       )}

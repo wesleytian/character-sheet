@@ -1139,3 +1139,19 @@ span.cnum.masked {
 }
 .pl-row.drop-before::before { top: -1px; }
 .pl-row.drop-after::after { bottom: -1px; }
+
+/* ---------- people ---------- */
+.people-drop { min-height: 60px; border: 1px dashed transparent; border-radius: 3px; }
+.people-drop.over { border-color: var(--gold); background: rgba(185,139,74,.08); }
+.row.person { position: relative; gap: 8px; cursor: grab; align-items: center; }
+.row.person.dragging { opacity: .4; cursor: grabbing; }
+.row.person.drop-before::before, .row.person.drop-after::after {
+  content: ""; position: absolute; left: 0; right: 0; height: 2px;
+  background: var(--gold); box-shadow: 0 0 6px rgba(220,175,137,.8);
+}
+.row.person.drop-before::before { top: -1px; }
+.row.person.drop-after::after { bottom: -1px; }
+.person-name { flex: 1; min-width: 0; text-align: left; }
+.person-rel { flex: none; width: 9em; font-size: 14px; color: var(--dim); }
+.row.person.crm .add { flex: none; }
+.row.person.crm { cursor: grab; }
