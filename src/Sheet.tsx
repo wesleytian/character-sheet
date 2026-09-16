@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Sheet as SheetData, Quest, Metric, AtlasEntry } from './types';
 import { deriveSkill, rankOf, DerivedSkill } from './skills';
-import { toggleMilestone, setQuestStatus, deleteRow, renameQuest, setPinned, setSkillHidden } from './db';
+import { toggleMilestone, setQuestStatus, deleteRow, renameQuest, setPinned, setSkillHidden, insertRows } from './db';
 import { AddKind } from './Modal';
 import { PickerKind } from './Picker';
 import { Timeline } from './Timeline';
@@ -193,6 +193,47 @@ function FocusRow({ metric, sheet, onOpen }:
   );
 }
 
+/** A permanently blank row at the end of a list: type, press Enter, done. */
+function NewQuest({ kind, status, track, userId, onAdded }:
+  { kind: string; status: string; track: string; userId: string; onAdded: () => void }) {
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const add = async () => {
+    const title = text.trim();
+    if (!title || busy) return;
+    setBusy(true);
+    try {
+      await insertRows('cs_quests', [{
+        user_id: userId, title, kind, track, phase: '', status,
+        completed_on: status === 'done' ? new Date().toISOString().slice(0, 10) : null,
+        progress_current: null, progress_total: null, note: '',
+        display_order: 999, is_public: true, pinned: false,
+      }]);
+      setText('');
+      onAdded();
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <div className="quest newquest">
+      <span className="bx ghost" />
+      <input
+        className="t"
+        value={text}
+        placeholder="Add one…"
+        disabled={busy}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={add}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') add();
+          if (e.key === 'Escape') setText('');
+        }}
+      />
+    </div>
+  );
+}
+
 function toneFor(level: number) {
   if (level >= 65) return 'jade';
   if (level >= 35) return 'gold';
@@ -338,7 +379,8 @@ function MetricRows({ metrics, sheet, onOpen, why }:
               )}
             </span>
             <span className="goal">
-              {latest?.value != null && percentileOf(m, Number(latest.value)) != null
+              {latest?.value != null && m.percentile_useful
+                && percentileOf(m, Number(latest.value)) != null
                 ? `${percentileOf(m, Number(latest.value))}th`
                 : targetText(m)}
             </span>
@@ -582,6 +624,8 @@ export function Sheet({
     onDrop: (e: React.DragEvent) => { e.preventDefault(); dropTo(st); },
   });
 
+  const kindFor = (list: Quest[]) => list[0]?.kind ?? 'main';
+
   const questGroups = (list: Quest[], only?: string[]) => (
     <>
       {([['active', 'In progress'], ['locked', 'Not started'], ['done', 'Done']] as const)
@@ -605,9 +649,8 @@ export function Sheet({
                 {label} <span className="num">{rows.length}</span>
               </div>
               {rows.map(questRow)}
-              {rows.length === 0 && (
-                <div className="qempty">{dragId ? 'Drop here' : 'Nothing here'}</div>
-              )}
+              {rows.length === 0 && dragId && <div className="qempty">Drop here</div>}
+              <NewQuest kind={kindFor(list)} status={st} track="" onAdded={onChanged} userId={userId} />
             </div>
           );
         })}
@@ -938,6 +981,7 @@ export function Sheet({
                       </div>
                       {rows.filter((q) => q.status !== 'done').map(questRow)}
                       {rows.filter((q) => q.status === 'done').map(questRow)}
+                      <NewQuest kind="side" status="locked" track={t} onAdded={onChanged} userId={userId} />
                     </div>
                   );
                 })}
@@ -965,6 +1009,7 @@ export function Sheet({
                       </div>
                       {rows.filter((q) => q.status !== 'done').map(questRow)}
                       {rows.filter((q) => q.status === 'done').map(questRow)}
+                      <NewQuest kind="bucket" status="locked" track={t} onAdded={onChanged} userId={userId} />
                     </div>
                   );
                 })}

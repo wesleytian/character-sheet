@@ -39,6 +39,7 @@ export interface Metric {
   p75: number | null;
   p90: number | null;
   percentile_source: string;
+  percentile_useful: boolean;
   focus_order: number;
   focus_goal: string;
   is_public: boolean;
