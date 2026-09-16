@@ -213,19 +213,25 @@ export function Vault({
               <div className="slot" key={slot}>
                 <div className="slot-head">
                   <span className="slot-name">{label}</span>
-                  <button className="add" onClick={() => setAdding(adding === slot ? null : slot)}>+</button>
+                  {!locked && (
+                    <button className="add" onClick={() => setAdding(adding === slot ? null : slot)}>+</button>
+                  )}
                 </div>
                 {owned.map((i) => (
                   <div className="row item" key={i.id}>
-                    <input
-                      className="qedit"
-                      defaultValue={i.name}
-                      onBlur={async (e) => {
-                        const v = e.target.value.trim();
-                        if (v && v !== i.name) { await updateItem(i.id, { name: v }); onChanged(); }
-                      }}
-                      onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
-                    />
+                    {locked ? (
+                      <span className="item-name masked">{i.name}</span>
+                    ) : (
+                      <input
+                        className="qedit"
+                        defaultValue={i.name}
+                        onBlur={async (e) => {
+                          const v = e.target.value.trim();
+                          if (v && v !== i.name) { await updateItem(i.id, { name: v }); onChanged(); }
+                        }}
+                        onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                      />
+                    )}
                     {locked
                       ? <span className="cnum num wide masked">
                           {i.value == null ? '—' : money(Number(i.value), 'USD')}
@@ -235,8 +241,10 @@ export function Vault({
                           unit="USD"
                           onCommit={async (v) => { await updateItem(i.id, { value: v }); onChanged(); }}
                         />}
-                    <button className="qdel" title="Remove"
-                            onClick={async () => { await deleteRow('cs_items', i.id); onChanged(); }}>×</button>
+                    {!locked && (
+                      <button className="qdel" title="Remove"
+                              onClick={async () => { await deleteRow('cs_items', i.id); onChanged(); }}>×</button>
+                    )}
                   </div>
                 ))}
                 {adding === slot && (

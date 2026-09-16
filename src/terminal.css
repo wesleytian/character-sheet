@@ -1048,3 +1048,23 @@ span.cnum.masked {
 }
 .traj-rows { margin-top: 5px; }
 .traj-note { margin: 7px 0 0; font-size: 13px; color: var(--faint); }
+.item-name { flex: 1; min-width: 0; text-align: left; }
+.item-name.masked { min-width: 6em; }
+.pl-row { gap: 8px; align-items: center; }
+.pl-when { flex: none; width: 10.5em; font-size: 14px; color: var(--dim); }
+.pl-name { flex: 1; min-width: 0; }
+
+/* ---------- metric rows without sparklines ---------- */
+.spark-n { flex: none; width: 2.5ch; text-align: right; font-size: 12px; }
+.focus-item .ftarget { flex: none; width: 8ch; text-align: right; font-size: 12.5px; }
+
+/* ---------- pinning a rung from the ladder ---------- */
+.rung { display: flex; align-items: center; gap: 0; padding: 0; }
+.rung:hover { background: #2A221A; }
+.rung-hit { display: flex; gap: 10px; flex: 1; text-align: left; padding: 3px 5px; min-width: 0; }
+.rung .pin { padding: 0 7px; font-size: 12px; }
+.ladder-pinhint { color: var(--faint); font-size: 12.5px; margin-top: 7px; }
+
+/* ---------- Chronicle is still thin ---------- */
+.tab.muted { opacity: .45; }
+.tab.muted.on { opacity: 1; }

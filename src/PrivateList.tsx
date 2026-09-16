@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { AtlasEntry } from './types';
-import { insertRows, deleteRow } from './db';
+import { insertRows, deleteRow, updateAtlas } from './db';
 import { useEscape } from './useEscape';
 
 /**
@@ -64,9 +64,25 @@ export function PrivateList({
         <div className="labs-scroll">
           <div className="panel-head">{entries.length} recorded</div>
           {sorted.map((e) => (
-            <div className="row" key={e.id}>
-              <span className="k num">{e.happened_on?.slice(0, 7) ?? '—'}</span>
-              <span className="v">{e.name}</span>
+            <div className="row pl-row" key={e.id}>
+              <input
+                className="qedit pl-when"
+                type="date"
+                defaultValue={e.happened_on ?? ''}
+                onChange={async (ev) => {
+                  await updateAtlas(e.id, { happened_on: ev.target.value || null });
+                  onChanged();
+                }}
+              />
+              <input
+                className="qedit pl-name"
+                defaultValue={e.name}
+                onBlur={async (ev) => {
+                  const v = ev.target.value.trim();
+                  if (v && v !== e.name) { await updateAtlas(e.id, { name: v }); onChanged(); }
+                }}
+                onKeyDown={(ev) => { if (ev.key === 'Enter') (ev.target as HTMLInputElement).blur(); }}
+              />
               <button className="qdel" onClick={() => remove(e)} title="Remove">×</button>
             </div>
           ))}

@@ -107,30 +107,6 @@ function RangeMeter({ value, low, high, direction }:
   );
 }
 
-/** A 5-point trend line. Replaces an unlabelled reading count with the shape. */
-function Spark({ points, direction }: { points: number[]; direction: string }) {
-  if (points.length < 2) return null;
-  const w = 44, h = 14, pad = 2;
-  const lo = Math.min(...points), hi = Math.max(...points);
-  const span = hi - lo || 1;
-  const x = (i: number) => pad + (i / (points.length - 1)) * (w - pad * 2);
-  const y = (v: number) => pad + (1 - (v - lo) / span) * (h - pad * 2);
-  const d = points.map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
-  const delta = points[points.length - 1] - points[0];
-  const good = delta === 0 ? null
-    : direction === 'lower' ? delta < 0
-    : direction === 'higher' ? delta > 0
-    : null;
-  const stroke = good === true ? '#7FA86B' : good === false ? '#B4483C' : '#8B979C';
-  return (
-    <svg className="spark-svg" width={w} height={h} viewBox={`0 0 ${w} ${h}`} aria-hidden="true">
-      <path d={d} fill="none" stroke={stroke} strokeWidth="1.4"
-            strokeLinejoin="round" strokeLinecap="round" />
-      <circle cx={x(points.length - 1)} cy={y(points[points.length - 1])} r="2" fill={stroke} />
-    </svg>
-  );
-}
-
 /** A focus metric: latest reading, which way it moved, and the goal on hover. */
 function FocusRow({ metric, sheet, onOpen }:
   { metric: Metric; sheet: SheetData; onOpen: (m: Metric) => void }) {
@@ -138,12 +114,13 @@ function FocusRow({ metric, sheet, onOpen }:
     .filter((x) => x.metric_key === metric.key && x.value != null)
     .sort((a, b) => b.measured_at.localeCompare(a.measured_at));
   const latest = hist[0];
-  const prev = hist[1];
-  const delta = latest && prev ? Number(latest.value) - Number(prev.value) : null;
-  const good = delta == null || delta === 0 ? null
-    : metric.direction === 'lower' ? delta < 0
-    : metric.direction === 'higher' ? delta > 0
-    : null;
+  const target = metric.direction === 'lower' && metric.target_high != null
+    ? `under ${metric.target_high}`
+    : metric.direction === 'higher' && metric.target_low != null
+      ? `over ${metric.target_low}`
+      : metric.target_low != null && metric.target_high != null
+        ? `${metric.target_low}\u2013${metric.target_high}`
+        : '';
 
   const short = metric.label
     .replace(/\s*\(.*?\)\s*/g, '')
@@ -158,10 +135,7 @@ function FocusRow({ metric, sheet, onOpen }:
         <>
           <span className="num fv">{latest.value}</span>
           <span className="fu">{metric.unit}</span>
-          <span className={`num fd ${good === true ? 'g' : good === false ? 'r' : 'd'}`}>
-            {delta == null || delta === 0 ? ''
-              : `${delta > 0 ? '\u2191' : '\u2193'}${Math.abs(delta) < 1 ? Math.abs(delta).toFixed(2) : Math.abs(delta).toFixed(0)}`}
-          </span>
+          <span className="ftarget d">{target}</span>
         </>
       ) : (
         <span className="d fv">—</span>
@@ -192,8 +166,9 @@ function lifeMath(birthday: string | null, span: number) {
   };
 }
 
-function SkillRow({ d, onToggle, onHide }:
-  { d: DerivedSkill; onToggle: (id: string, v: boolean) => void; onHide: (id: string, v: boolean) => void }) {
+function SkillRow({ d, onToggle, onHide, onPinRung }:
+  { d: DerivedSkill; onToggle: (id: string, v: boolean) => void;
+    onHide: (id: string, v: boolean) => void; onPinRung: (id: string, v: boolean) => void }) {
   const [open, setOpen] = useState(false);
   const ref = useDismiss(open, () => setOpen(false));
   const { skill, level, current, next, ladder } = d;
@@ -229,11 +204,8 @@ function SkillRow({ d, onToggle, onHide }:
             tracks partial progress, it slides toward it.
           </div>
           {[...ladder].reverse().map((m) => (
-            <button
-              key={m.id}
-              className={`rung ${m.achieved ? 'on' : ''} ${m.level === 100 ? 'cap' : ''}`}
-              onClick={() => onToggle(m.id, !m.achieved)}
-            >
+            <div key={m.id} className={`rung ${m.achieved ? 'on' : ''} ${m.level === 100 ? 'cap' : ''}`}>
+            <button className="rung-hit" onClick={() => onToggle(m.id, !m.achieved)}>
               <span className="box"><span className="bxm">{m.achieved ? '✓' : ''}</span></span>
               <span className="lv">{m.level}</span>
               <span className="lb">
@@ -242,7 +214,16 @@ function SkillRow({ d, onToggle, onHide }:
                 {m.note && <span className="d"> · {m.note}</span>}
               </span>
             </button>
+            {m.achieved && (
+              <button className={`pin ${m.pinned ? 'on' : ''}`}
+                      title={m.pinned ? 'On the card' : 'Add to Biggest accomplishments'}
+                      onClick={() => onPinRung(m.id, !m.pinned)}>★</button>
+            )}
+            </div>
           ))}
+          <div className="ladder-pinhint">
+            Tick a rung, then use ★ to put it on the card.
+          </div>
           <div className="ladder-foot">
             <span className="ladder-hint">Click any rung to tick or untick it — the level follows.</span>
             <button className="archive-btn"
@@ -303,9 +284,7 @@ function MetricRows({ metrics, sheet, onOpen, why }:
               <RangeMeter value={Number(latest.value)} low={m.target_low} high={m.target_high} direction={m.direction} />
             )}
             {history > 1 && (
-              <span className="spark" title={`${history} readings`}>
-                <Spark points={series.slice(-6)} direction={m.direction} />
-              </span>
+              <span className="spark-n num d" title={`${history} readings`}>{history}</span>
             )}
             {why && m.why && (
               <span onClick={(e) => e.stopPropagation()}><Tip body={m.why} /></span>
@@ -428,7 +407,7 @@ export function Sheet({
   onPick: (k: PickerKind) => void;
   userId: string;
 }) {
-  const [view, setView] = useState<'character' | 'skills' | 'quests' | 'world' | 'tally' | 'vault' | 'chronicle'>('character');
+  const [view, setView] = useState<'character' | 'skills' | 'quests' | 'world' | 'people' | 'tally' | 'vault' | 'chronicle'>('character');
   const [chart, setChart] = useState<Metric | null>(null);
   const [questTab, setQuestTab] = useState<'main' | 'side' | 'bucket'>('main');
   const [span, setSpan] = useState(false);
@@ -477,6 +456,7 @@ export function Sheet({
 
   const toggle = async (id: string, v: boolean) => { await toggleMilestone(id, v); onChanged(); };
   const hideSkill = async (id: string, v: boolean) => { await setSkillHidden(id, v); onChanged(); };
+  const pinRung = async (id: string, v: boolean) => { await setPinned('cs_skill_milestones', id, v); onChanged(); };
   const celebrate = (q: Quest) => {
     setPopped(q.id);
     window.setTimeout(() => setPopped((p) => (p === q.id ? null : p)), 700);
@@ -637,10 +617,11 @@ export function Sheet({
   }));
 
   const TABS = [
-    ['character', 'Character', ''],
+    ['character', 'Health', ''],
     ['skills', 'Skills', String(derived.length)],
     ['quests', 'Quests', `${sheet.quests.filter((q) => q.status === 'done').length}/${sheet.quests.length}`],
     ['world', 'World', String(countries.length)],
+    ['people', 'People', ''],
     ['tally', 'Tally', String(sheet.counters.filter((c) => c.value != null).length)],
     ['vault', 'Vault', ''],
     ['chronicle', 'Chronicle', ''],
@@ -682,7 +663,7 @@ export function Sheet({
         {accomplishments.length > 0 && (
           <div className="card-now">
             <div className="card-now-label">
-              Proudest so far
+              Biggest accomplishments
               <button className="card-edit" onClick={() => setCardEdit((v) => !v)}>
                 {cardEdit ? 'done' : 'edit'}
               </button>
@@ -732,7 +713,10 @@ export function Sheet({
 
       <nav className="tabs">
         {TABS.map(([id, label, n]) => (
-          <button key={id} className={`tab ${view === id ? 'on' : ''}`} onClick={() => setView(id as typeof view)}>
+          <button key={id}
+                  className={`tab ${view === id ? 'on' : ''} ${id === 'chronicle' ? 'muted' : ''}`}
+                  title={id === 'chronicle' ? 'Sparse until you dump your life events in' : undefined}
+                  onClick={() => setView(id as typeof view)}>
             {label}{n && <span className="n">{n}</span>}
           </button>
         ))}
@@ -815,8 +799,6 @@ export function Sheet({
               <span className="more">see all</span>
             </button>
 
-            <div className="sec">Friends</div>
-            <Fellowship order={p?.friend_order ?? []} userId={userId} onChanged={onChanged} />
           </div>
         </div>
       )}
@@ -872,7 +854,7 @@ export function Sheet({
                         <div className="group-head">
                           {label} <span className="d">{group.length} · {group.reduce((n, d) => n + d.level, 0)} pts</span>
                         </div>
-                        {group.map((d) => <SkillRow key={d.skill.id} d={d} onToggle={toggle} onHide={hideSkill} />)}
+                        {group.map((d) => <SkillRow key={d.skill.id} d={d} onToggle={toggle} onHide={hideSkill} onPinRung={pinRung} />)}
                       </div>
                     ))}
                   </div>
@@ -1051,6 +1033,13 @@ export function Sheet({
       )}
 
       {/* ---------------- CHRONICLE ---------------- */}
+      {view === 'people' && (
+        <>
+          <div className="sec">Friends <span className="count">most contact, last 12 months</span></div>
+          <Fellowship order={p?.friend_order ?? []} userId={userId} onChanged={onChanged} />
+        </>
+      )}
+
       {view === 'tally' && (
         <>
           <div className="sec">Tally <span className="count">click a number to set it</span></div>

@@ -465,3 +465,8 @@ export async function setSkillHidden(id: string, hidden: boolean) {
   const { error } = await supabase.from('cs_skills').update({ hidden }).eq('id', id);
   if (error) throw new Error(error.message);
 }
+
+export async function updateAtlas(id: string, patch: Record<string, unknown>) {
+  const { error } = await supabase.from('cs_atlas').update(patch).eq('id', id);
+  if (error) throw new Error(error.message);
+}
