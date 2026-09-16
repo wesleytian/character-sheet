@@ -1045,12 +1045,10 @@ export function Sheet({
               </button>
             )}
           </div>
-          {vaultOpen ? (
-            <Vault rows={sheet.money} items={sheet.items} userId={userId} onChanged={onChanged} />
-          ) : (
-            <VaultLock userId={userId} pinHash={p?.vault_pin_hash ?? null}
-                       onUnlock={() => setVaultOpen(true)} />
-          )}
+          <Vault rows={sheet.money} items={sheet.items} userId={userId}
+                 onChanged={onChanged} locked={!vaultOpen}
+                 lock={<VaultLock userId={userId} pinHash={p?.vault_pin_hash ?? null}
+                                  onUnlock={() => setVaultOpen(true)} compact />} />
         </>
       )}
 

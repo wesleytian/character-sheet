@@ -115,8 +115,11 @@ function MoneyInput({
 }
 
 export function Vault({
-  rows, items, userId, onChanged,
-}: { rows: MoneyRow[]; items: ItemRow[]; userId: string; onChanged: () => void }) {
+  rows, items, userId, onChanged, locked = false, lock,
+}: {
+  rows: MoneyRow[]; items: ItemRow[]; userId: string; onChanged: () => void;
+  locked?: boolean; lock?: React.ReactNode;
+}) {
   const [adding, setAdding] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [val, setVal] = useState('');
@@ -149,17 +152,21 @@ export function Vault({
     : null;
   const mismatch = net != null && sum != null && Math.abs(sum - net) > 1 ? sum - net : null;
 
+  const Hide = ({ children }: { children: React.ReactNode }) =>
+    locked ? <span className="masked" aria-label="hidden">{children}</span> : <>{children}</>;
+
   return (
     <>
+      {locked && lock}
       <div className="vault-head">
         <div>
           <div className="card-now-label">Net worth</div>
-          <div className="hs-n">{money(net, 'USD')}</div>
+          <div className="hs-n"><Hide>{money(net, 'USD')}</Hide></div>
           {lastUpdated && <div className="d vault-when">as of {lastUpdated}</div>}
         </div>
         <div>
           <div className="card-now-label">Top items</div>
-          <div className="hs-n">{money(gear || null, 'USD')}</div>
+          <div className="hs-n"><Hide>{money(gear || null, 'USD')}</Hide></div>
           <div className="d vault-when">{items.length} recorded</div>
         </div>
       </div>
@@ -183,8 +190,10 @@ export function Vault({
                 {g.map((r) => (
                   <div className="row counter" key={r.id}>
                     <span className="k">{r.label}</span>
-                    <MoneyInput value={r.value} unit={r.unit}
-                                onCommit={async (v) => { await setMoney(r.id, v); onChanged(); }} />
+                    {locked
+                      ? <span className="cnum num wide masked">{money(r.value, r.unit)}</span>
+                      : <MoneyInput value={r.value} unit={r.unit}
+                                    onCommit={async (v) => { await setMoney(r.id, v); onChanged(); }} />}
                     <span className="d">{r.unit === 'USD' ? '$' : r.unit}</span>
                     {r.note && <Tip body={r.note} />}
                   </div>
@@ -215,11 +224,13 @@ export function Vault({
                       }}
                       onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
                     />
-                    <MoneyInput
-                      value={i.value == null ? null : Number(i.value)}
-                      unit="USD"
-                      onCommit={async (v) => { await updateItem(i.id, { value: v }); onChanged(); }}
-                    />
+                    {locked
+                      ? <span className="cnum num wide masked">{money(i.value == null ? null : Number(i.value), 'USD')}</span>
+                      : <MoneyInput
+                          value={i.value == null ? null : Number(i.value)}
+                          unit="USD"
+                          onCommit={async (v) => { await updateItem(i.id, { value: v }); onChanged(); }}
+                        />}
                     <button className="qdel" title="Remove"
                             onClick={async () => { await deleteRow('cs_items', i.id); onChanged(); }}>×</button>
                   </div>

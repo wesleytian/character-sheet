@@ -17,8 +17,8 @@ const KEY = 'cs-vault-unlocked';
 export const isUnlocked = () => sessionStorage.getItem(KEY) === '1';
 
 export function VaultLock({
-  userId, pinHash, onUnlock,
-}: { userId: string; pinHash: string | null; onUnlock: () => void }) {
+  userId, pinHash, onUnlock, compact = false,
+}: { userId: string; pinHash: string | null; onUnlock: () => void; compact?: boolean }) {
   const [pin, setPin] = useState('');
   const [confirm, setConfirm] = useState('');
   const [error, setError] = useState('');
@@ -41,6 +41,27 @@ export function VaultLock({
     sessionStorage.setItem(KEY, '1');
     onUnlock();
   };
+
+  if (compact) {
+    return (
+      <div className="vault-lock-bar">
+        <span className="lock-sigil">◈</span>
+        <span className="d">
+          {setup ? 'Set a passcode to hide the figures' : 'Figures hidden'}
+        </span>
+        <input type="password" value={pin} placeholder="Passcode"
+               onChange={(e) => setPin(e.target.value)}
+               onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} />
+        {setup && (
+          <input type="password" value={confirm} placeholder="Again"
+                 onChange={(e) => setConfirm(e.target.value)}
+                 onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} />
+        )}
+        <button className="btn primary" onClick={submit}>{setup ? 'Set' : 'Show'}</button>
+        {error && <span className="r">{error}</span>}
+      </div>
+    );
+  }
 
   return (
     <div className="vault-lock">
