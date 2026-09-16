@@ -84,8 +84,8 @@ function useDismiss(open: boolean, close: () => void) {
 }
 
 /** Where a reading sits inside (or outside) its healthy window. */
-function RangeMeter({ value, low, high, direction }:
-  { value: number; low: number | null; high: number | null; direction: string }) {
+function RangeMeter({ value, low, high }:
+  { value: number; low: number | null; high: number | null }) {
   const lo = low ?? (high != null ? high * 0.4 : value * 0.5);
   const hi = high ?? (low != null ? low * 2.2 : value * 1.5);
   const padLo = lo - (hi - lo) * 0.45;
@@ -93,18 +93,22 @@ function RangeMeter({ value, low, high, direction }:
   const pos = (v: number) => Math.max(0, Math.min(100, ((v - padLo) / (padHi - padLo)) * 100));
   const zoneL = pos(low ?? padLo);
   const zoneR = pos(high ?? padHi);
-  const target = direction === 'lower' ? `under ${high}`
-    : direction === 'higher' ? `over ${low}`
-    : `${low}\u2013${high}`;
   return (
     <span className="rng">
       <span className="bar">
         <span className="zone" style={{ left: `${zoneL}%`, width: `${Math.max(2, zoneR - zoneL)}%` }} />
         <span className="pin" style={{ left: `${pos(value)}%` }} />
       </span>
-      <span className="goal">{target}</span>
     </span>
   );
+}
+
+/** The goal in words, rendered in its own column so rows stay aligned. */
+function targetText(m: Metric) {
+  if (m.direction === 'lower' && m.target_high != null) return `under ${m.target_high}`;
+  if (m.direction === 'higher' && m.target_low != null) return `over ${m.target_low}`;
+  if (m.target_low != null && m.target_high != null) return `${m.target_low}-${m.target_high}`;
+  return '';
 }
 
 /** A focus metric: latest reading, which way it moved, and the goal on hover. */
@@ -273,14 +277,9 @@ function MetricRows({ metrics, sheet, onOpen, why }:
           off = (m.target_low != null && v < m.target_low)
              || (m.target_high != null && v > m.target_high);
         }
-        const series = sheet.measurements
-          .filter((x) => x.metric_key === m.key && x.value != null)
-          .sort((a, b) => a.measured_at.localeCompare(b.measured_at))
-          .map((x) => Number(x.value));
-        const history = series.length;
         return (
           <button className="row metric-row" key={m.id} onClick={() => onOpen(m)}
-                  title={latest ? `${history} reading${history > 1 ? 's' : ''} · last ${latest.measured_at}${latest.source ? ` · ${latest.source}` : ''}` : 'No readings'}>
+                  title={latest ? `Last ${latest.measured_at}${latest.source ? ` · ${latest.source}` : ''}` : 'No readings'}>
             <span className="k" title={m.label}>{shortLabel(m)}</span>
             <span className="v">
               {latest?.value != null ? (
@@ -292,15 +291,15 @@ function MetricRows({ metrics, sheet, onOpen, why }:
                 <span className="d">not recorded</span>
               )}
             </span>
-            {latest?.value != null && (m.target_low != null || m.target_high != null) && (
-              <RangeMeter value={Number(latest.value)} low={m.target_low} high={m.target_high} direction={m.direction} />
-            )}
-            {history > 1 && (
-              <span className="spark-n num d" title={`${history} readings`}>{history}</span>
-            )}
-            {why && m.why && (
-              <span onClick={(e) => e.stopPropagation()}><Tip body={m.why} /></span>
-            )}
+            <span className="mcell">
+              {latest?.value != null && (m.target_low != null || m.target_high != null) && (
+                <RangeMeter value={Number(latest.value)} low={m.target_low} high={m.target_high} />
+              )}
+            </span>
+            <span className="goal">{targetText(m)}</span>
+            <span className="whycell" onClick={(e) => e.stopPropagation()}>
+              {why && m.why ? <Tip body={m.why} /> : null}
+            </span>
           </button>
         );
       })}

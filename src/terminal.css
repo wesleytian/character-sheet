@@ -434,7 +434,22 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .chart-wrap { border: 1px solid var(--edge); background: var(--bg); padding: 6px; overflow-x: auto; }
 .chart { width: 100%; height: auto; display: block; }
 .chart-table { max-height: 20vh; overflow-y: auto; margin-top: 12px; border-top: 1px solid var(--edge); padding-top: 8px; }
-.metric-row { width: 100%; text-align: left; }
+/* A grid, not flex: every row has the same columns whether or not it has a
+   meter or a target, so the ? column always lines up. */
+.metric-row {
+  width: 100%; text-align: left; display: grid;
+  grid-template-columns: 11ch minmax(7.5ch, max-content) 1fr 7.5ch 20px;
+  align-items: center; gap: 9px; white-space: nowrap;
+}
+.metric-row .k { width: auto; }
+.metric-row .v { min-width: 0; text-align: right; }
+.metric-row .mcell { min-width: 0; display: flex; }
+.metric-row .goal { text-align: right; justify-self: end; }
+.metric-row .spark-n { width: auto; text-align: right; }
+.metric-row .whycell { display: flex; justify-content: flex-end; }
+@media (max-width: 640px) {
+  .metric-row { grid-template-columns: 10ch minmax(6ch, max-content) 1fr 6ch 20px; }
+}
 .metric-row:hover { background: var(--panel); }
 .metric-row .spark { color: var(--faint); font-size: 12px; }
 
@@ -468,7 +483,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .card-head { align-items: flex-start; }
 
 /* ---------- range position meter ---------- */
-.rng { display: flex; align-items: center; gap: 9px; flex: 1; min-width: 0; }
+.rng { display: flex; align-items: center; flex: 1; min-width: 0; }
 .rng .bar {
   flex: 1; height: 8px; position: relative; background: var(--track);
   border: 1px solid var(--edge); min-width: 40px;
@@ -1074,3 +1089,5 @@ span.cnum.masked {
 /* ---------- Chronicle is still thin ---------- */
 .tab.muted { opacity: .45; }
 .tab.muted.on { opacity: 1; }
+.row.due { grid-template-columns: none; display: flex; }
+.row.due .v { flex: none; min-width: 0; text-align: left; }

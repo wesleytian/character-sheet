@@ -49,26 +49,23 @@ export function DueTests({ sheet }: { sheet: SheetData }) {
   const rows = dueList(sheet);
   if (!rows.length) return null;
 
+  // Short forms: the row is a status, not a sentence.
   const say = (d: Due) => {
-    if (d.daysOver > 60) return `${Math.round(d.daysOver / 30)} months overdue`;
-    if (d.daysOver > 0) return `${d.daysOver} days overdue`;
+    if (d.daysOver > 60) return `${Math.round(d.daysOver / 30)} mo overdue`;
+    if (d.daysOver > 0) return `${d.daysOver}d overdue`;
     const inDays = -d.daysOver;
-    if (inDays > 60) return `due in ${Math.round(inDays / 30)} months`;
-    return `due in ${inDays} days`;
+    if (inDays > 60) return `in ${Math.round(inDays / 30)} mo`;
+    return `in ${inDays}d`;
   };
 
   return (
     <>
-      <div className="sec">
-        Due <span className="count">every reading has a cadence</span>
-      </div>
+      <div className="sec">Due</div>
       {rows.map((d) => (
-        <div className={`row due ${d.daysOver > 0 ? 'over' : ''}`} key={d.group}>
+        <div className={`row due ${d.daysOver > 0 ? 'over' : ''}`} key={d.group}
+             title={`Last ${d.last} · every ${d.cadence} months · due ${d.due}`}>
           <span className="k">{d.group}</span>
-          <span className="v">
-            <span className={d.daysOver > 0 ? 'r' : 'd'}>{say(d)}</span>
-            <span className="d"> · last {d.last} · every {d.cadence} mo</span>
-          </span>
+          <span className={`v ${d.daysOver > 0 ? 'r' : 'd'}`}>{say(d)}</span>
         </div>
       ))}
     </>
