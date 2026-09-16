@@ -1094,3 +1094,21 @@ span.cnum.masked {
 .tab.muted.on { opacity: 1; }
 .row.due { grid-template-columns: none; display: flex; }
 .row.due .v { flex: none; min-width: 0; text-align: left; }
+
+/* ---------- tab customising ---------- */
+.tabs { position: relative; }
+.tab.dragging { opacity: .4; }
+.tab.drop-before::before, .tab.drop-after::after {
+  content: ""; position: absolute; top: 4px; bottom: 4px; width: 2px;
+  background: var(--gold); box-shadow: 0 0 6px rgba(220,175,137,.8);
+}
+.tab { position: relative; }
+.tab.drop-before::before { left: -1px; }
+.tab.drop-after::after { right: -1px; }
+.tab-cog {
+  font-family: var(--body); font-weight: 700; font-size: 11px;
+  letter-spacing: .1em; text-transform: uppercase; color: var(--faint);
+  padding: 6px 10px; align-self: center;
+}
+.tab-cog:hover, .tab-cog.on { color: var(--gold); }
+.tab-hint { font-size: 12.5px; color: var(--gold); margin: 6px 0 0; }

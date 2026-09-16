@@ -16,6 +16,7 @@ import { Icon } from './Icon';
 import { Counters } from './Counters';
 import { Tip } from './Tip';
 import { InboxButton } from './Inbox';
+import { TabBar } from './TabBar';
 import { DueTests } from './DueTests';
 import { Toast, ToastMsg } from './Toast';
 import { HealthScoreCard } from './HealthScore';
@@ -718,17 +719,17 @@ export function Sheet({
 
       <LifeBars />
 
-      <nav className="tabs">
-        {TABS.map(([id, label, n]) => (
-          <button key={id}
-                  className={`tab ${view === id ? 'on' : ''} ${id === 'chronicle' ? 'muted' : ''}`}
-                  title={id === 'chronicle' ? 'Sparse until you dump your life events in' : undefined}
-                  onClick={() => setView(id as typeof view)}>
-            {label}{n && <span className="n">{n}</span>}
-          </button>
-        ))}
+      <TabBar
+        tabs={TABS.map(([id, label, n]) => ({ id, label, count: n }))}
+        view={view}
+        setView={(v) => setView(v as typeof view)}
+        order={p?.tab_order ?? []}
+        muted={p?.tab_muted ?? []}
+        userId={userId}
+        onChanged={onChanged}
+      >
         <InboxButton notes={sheet.notes} onChanged={onChanged} />
-      </nav>
+      </TabBar>
 
       {/* ---------------- CHARACTER ---------------- */}
       {view === 'character' && (
@@ -964,7 +965,7 @@ export function Sheet({
             </div>
             {lived.map((a) => (
               <div className="row" key={a.id}>
-                <span className="k num">{a.years ? `${a.years} yr` : a.detail || '—'}</span>
+                <span className="k num">{a.years ? `${a.years} ${Number(a.years) === 1 ? 'yr' : 'yrs'}` : a.detail || '—'}</span>
                 <span className="v">
                   {a.name}
                   {/\bcurrent|returned\b/i.test(a.detail) && <span className="now-tag">here now</span>}

@@ -15,6 +15,8 @@ export interface Profile {
   avatar_url: string | null;
   friend_order: string[] | null;
   vault_pin_hash: string | null;
+  tab_order: string[] | null;
+  tab_muted: string[] | null;
 }
 
 export interface Metric {

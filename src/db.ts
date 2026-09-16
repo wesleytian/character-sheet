@@ -470,3 +470,9 @@ export async function updateAtlas(id: string, patch: Record<string, unknown>) {
   const { error } = await supabase.from('cs_atlas').update(patch).eq('id', id);
   if (error) throw new Error(error.message);
 }
+
+export async function setTabPrefs(userId: string, order: string[], muted: string[]) {
+  const { error } = await supabase
+    .from('cs_profile').update({ tab_order: order, tab_muted: muted }).eq('user_id', userId);
+  if (error) throw new Error(error.message);
+}
