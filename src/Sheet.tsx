@@ -307,16 +307,29 @@ function MetricRows({ metrics, sheet, onOpen, why }:
 function ChipList({ items, onRemove, icons }:
   { items: AtlasEntry[]; onRemove: (a: AtlasEntry) => void; icons?: boolean }) {
   if (!items.length) return <p className="d">Nothing recorded yet.</p>;
+  // Visited first, then planned - a place you mean to go is not a place you
+  // have been, and mixing them makes the list read as more than it is.
+  const visited = items.filter((a) => a.state !== 'planned');
+  const planned = items.filter((a) => a.state === 'planned');
+  const chip = (a: AtlasEntry) => (
+    <button className={`chip ${a.state === 'planned' ? 'planned' : ''}`} key={a.id}
+            onClick={() => onRemove(a)}
+            title={a.state === 'planned' ? 'Planning to go — click to remove' : 'Click to remove'}>
+      {icons && <span className="ic"><Icon name={a.name} /></span>}
+      {a.name}
+      <span className="x">×</span>
+    </button>
+  );
   return (
-    <div className="chips">
-      {items.map((a) => (
-        <button className="chip" key={a.id} onClick={() => onRemove(a)} title="Click to remove">
-          {icons && <span className="ic"><Icon name={a.name} /></span>}
-          {a.name}
-          <span className="x">×</span>
-        </button>
-      ))}
-    </div>
+    <>
+      <div className="chips">{visited.map(chip)}</div>
+      {planned.length > 0 && (
+        <>
+          <div className="planned-head">Planning to go <span className="d">{planned.length}</span></div>
+          <div className="chips">{planned.map(chip)}</div>
+        </>
+      )}
+    </>
   );
 }
 
@@ -931,6 +944,9 @@ export function Sheet({
 
             <div className="sec">
               Countries <span className="count">{been(countries).length} of {TOTAL_COUNTRIES}
+                {countries.length - been(countries).length > 0 && (
+                  <span className="plannedn"> · {countries.length - been(countries).length} planned</span>
+                )}
                 <button className="add" style={{ marginLeft: 8 }} onClick={() => setMapOpen({ kind: 'country', title: 'Countries visited' })}>map</button>
                 <button className="add" style={{ marginLeft: 6 }} onClick={() => onPick('country')}>list</button>
               </span>
@@ -950,6 +966,9 @@ export function Sheet({
           <div>
             <div className="sec">
               US States <span className="count">{been(at('state')).length} of {TOTAL_STATES}
+                {at('state').length - been(at('state')).length > 0 && (
+                  <span className="plannedn"> · {at('state').length - been(at('state')).length} planned</span>
+                )}
                 <button className="add" style={{ marginLeft: 8 }} onClick={() => setMapOpen({ kind: 'state', title: 'US states visited' })}>map</button>
                 <button className="add" style={{ marginLeft: 6 }} onClick={() => onPick('state')}>list</button>
               </span>
@@ -960,6 +979,9 @@ export function Sheet({
 
             <div className="sec">
               Chinese Provinces <span className="count">{been(at('province')).length} of {TOTAL_PROVINCES}
+                {at('province').length - been(at('province')).length > 0 && (
+                  <span className="plannedn"> · {at('province').length - been(at('province')).length} planned</span>
+                )}
                 <button className="add" style={{ marginLeft: 8 }} onClick={() => setMapOpen({ kind: 'province', title: 'Chinese provinces visited' })}>map</button>
                 <button className="add" style={{ marginLeft: 6 }} onClick={() => onPick('province')}>list</button>
               </span>
@@ -970,6 +992,9 @@ export function Sheet({
 
             <div className="sec">
               National Parks <span className="count">{been(at('park')).length} of {TOTAL_PARKS}
+                {at('park').length - been(at('park')).length > 0 && (
+                  <span className="plannedn"> · {at('park').length - been(at('park')).length} planned</span>
+                )}
                 <button className="add" style={{ marginLeft: 8 }} onClick={() => setMapOpen({ kind: 'park', title: 'US national parks' })}>map</button>
                 <button className="add" style={{ marginLeft: 6 }} onClick={() => onPick('park')}>list</button>
               </span>

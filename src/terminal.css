@@ -1171,3 +1171,16 @@ span.cnum.masked {
 .acc.ghost:hover { border-color: var(--gold); color: var(--ink); border-style: solid; }
 .acc .plus { color: var(--gold); margin-left: 6px; font-weight: 700; }
 .note-top .qdel { margin-left: 4px; }
+
+/* ---------- planned vs visited ---------- */
+.planned-head {
+  font-family: var(--body); font-weight: 700; font-size: 9.5px; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--gold); margin: 9px 0 4px;
+}
+.planned-head .d { letter-spacing: .02em; text-transform: none; font-weight: 400; font-size: 13px; }
+.chip.planned {
+  border-style: dashed; border-color: var(--gold); color: var(--gold);
+  background: repeating-linear-gradient(45deg,
+    rgba(217,160,60,.10) 0 4px, transparent 4px 8px);
+}
+.plannedn { color: var(--gold); }
