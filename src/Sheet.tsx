@@ -237,6 +237,28 @@ function SkillRow({ d, onToggle, onHide, onPinRung }:
   );
 }
 
+/** Parentheticals and long clinical names wrap; the row must stay on one line. */
+const SHORT: Record<string, string> = {
+  lean_mass: 'Lean mass',
+  bmd_total: 'Bone density',
+  waist_circumference: 'Waist',
+  blood_pressure_systolic: 'Blood pressure',
+  blood_pressure_diastolic: 'Diastolic',
+  grip_strength_left: 'Grip, left',
+  grip_strength_right: 'Grip, right',
+  resting_heart_rate: 'Resting HR',
+  vitamin_d_25_oh: 'Vitamin D',
+  total_testosterone: 'Testosterone',
+  free_testosterone: 'Free testosterone',
+  ldl_cholesterol_calculated: 'LDL',
+  hdl_cholesterol: 'HDL',
+  total_cholesterol: 'Total cholesterol',
+  glucose_fasting: 'Glucose',
+  insulin_fasting: 'Insulin',
+};
+const shortLabel = (m: Metric) =>
+  SHORT[m.key] ?? m.label.replace(/\s*\([^)]*\)\s*/g, ' ').trim();
+
 function MetricRows({ metrics, sheet, onOpen, why }:
   { metrics: Metric[]; sheet: SheetData; onOpen: (m: Metric) => void; why?: boolean }) {
   if (!metrics.length) return null;
@@ -244,22 +266,12 @@ function MetricRows({ metrics, sheet, onOpen, why }:
     <>
       {metrics.map((m) => {
         const latest = sheet.measurements.find((x) => x.metric_key === m.key);
-        let verdict = '';
-        let tone = 'd';
+        // Off-target shows as colour on the value, not as extra words.
+        let off = false;
         if (latest?.value != null) {
           const v = latest.value;
-          const low = m.target_low != null && v < m.target_low;
-          const high = m.target_high != null && v > m.target_high;
-          if (m.direction === 'higher') {
-            tone = low ? 'y' : 'g';
-            verdict = low ? `below ${m.target_low}` : m.target_low != null ? 'on target' : '';
-          } else if (m.direction === 'lower') {
-            tone = high ? 'y' : 'g';
-            verdict = high ? `above ${m.target_high}` : m.target_high != null ? 'on target' : '';
-          } else if (m.target_low != null || m.target_high != null) {
-            tone = low || high ? 'y' : 'g';
-            verdict = low || high ? 'out of range' : 'in range';
-          }
+          off = (m.target_low != null && v < m.target_low)
+             || (m.target_high != null && v > m.target_high);
         }
         const series = sheet.measurements
           .filter((x) => x.metric_key === m.key && x.value != null)
@@ -269,12 +281,12 @@ function MetricRows({ metrics, sheet, onOpen, why }:
         return (
           <button className="row metric-row" key={m.id} onClick={() => onOpen(m)}
                   title={latest ? `${history} reading${history > 1 ? 's' : ''} · last ${latest.measured_at}${latest.source ? ` · ${latest.source}` : ''}` : 'No readings'}>
-            <span className="k">{m.label}</span>
+            <span className="k" title={m.label}>{shortLabel(m)}</span>
             <span className="v">
               {latest?.value != null ? (
                 <>
-                  <b className="num">{latest.value}</b> <span className="d">{m.unit}</span>{' '}
-                  <span className={tone}>{verdict}</span>
+                  <b className={`num ${off ? 'y' : ''}`}>{latest.value}</b>
+                  <span className="u">{m.unit}</span>
                 </>
               ) : (
                 <span className="d">not recorded</span>
