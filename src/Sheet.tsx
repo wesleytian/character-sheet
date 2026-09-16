@@ -333,7 +333,7 @@ export function Sheet({
   onPick: (k: PickerKind) => void;
   userId: string;
 }) {
-  const [view, setView] = useState<'character' | 'skills' | 'main' | 'side' | 'bucket' | 'world' | 'people' | 'tally' | 'vault' | 'chronicle'>('character');
+  const [view, setView] = useState<'character' | 'skills' | 'main' | 'side' | 'world' | 'people' | 'tally' | 'vault' | 'chronicle'>('character');
   const [chart, setChart] = useState<Metric | null>(null);
   const [span, setSpan] = useState(false);
   const [allOpen, setAllOpen] = useState<{ cat: string; title: string } | null>(null);
@@ -527,6 +527,15 @@ export function Sheet({
         .filter(([st]) => !only || only.includes(st))
         .map(([st, label]) => {
           const rows = list.filter((q) => q.status === st);
+          // Finished quests read as a history, so newest first; undated last.
+          if (st === 'done') {
+            rows.sort((a, b) => {
+              if (!a.completed_on && !b.completed_on) return 0;
+              if (!a.completed_on) return 1;
+              if (!b.completed_on) return -1;
+              return b.completed_on.localeCompare(a.completed_on);
+            });
+          }
           return (
             <div key={st}
                  className={`qgroup ${st} ${overStatus === st ? 'over' : ''} ${dragId ? 'targetable' : ''}`}
@@ -557,10 +566,9 @@ export function Sheet({
     ['skills', 'Skills', String(derived.length)],
     ['main', 'Main Quests', `${main.filter((q) => q.status === 'done').length}/${main.length}`],
     ['side', 'Side Quests', `${side.filter((q) => q.status === 'done').length}/${side.length}`],
-    ['bucket', 'Bucket List', `${bucket.filter((q) => q.status === 'done').length}/${bucket.length}`],
-    ['world', 'World', String(been(countries).length)],
+    ['world', 'Explore', String(been(countries).length)],
     ['people', 'People', ''],
-    ['tally', 'Lifetime', String(sheet.counters.filter((c) => c.value != null).length)],
+    ['tally', 'Lifetime Stats', String(sheet.counters.filter((c) => c.value != null).length)],
     ['vault', 'Vault', ''],
     ['chronicle', 'Chronicle', ''],
   ] as const;
@@ -875,17 +883,12 @@ export function Sheet({
               </div>
             ))}
           </div>
-        </>
-      )}
 
-      {view === 'bucket' && (
-        <>
-          <div className="subtabs">
-            <button className={`add ${editMode ? 'on' : ''}`} style={{ marginLeft: 'auto' }}
-                    onClick={() => setEditMode((v) => !v)}>
-              {editMode ? 'done editing' : 'edit'}
-            </button>
-            <button className="add" style={{ marginLeft: 6 }} onClick={() => onAdd('quest')}>+ quest</button>
+          <div className="sec">
+            Bucket List
+            <span className="count">
+              {bucket.filter((q) => q.status === 'done').length}/{bucket.length} · someday, no deadline
+            </span>
           </div>
           <div className="cols">
             {[0, 1].map((col) => (
@@ -1003,7 +1006,7 @@ export function Sheet({
 
       {view === 'tally' && (
         <>
-          <div className="sec">Lifetime</div>
+          <div className="sec">Lifetime Stats</div>
           <Counters counters={sheet.counters} atlas={sheet.atlas} userId={userId} onChanged={onChanged} />
         </>
       )}
