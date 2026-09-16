@@ -1240,3 +1240,10 @@ button, a, .tab, .chip, .pick, .rung, .seg, .help,
 }
 .quest.newquest input.t::placeholder { color: var(--faint); font-style: italic; }
 .quest.newquest input.t:focus { border-bottom-color: var(--gold); }
+.acc-add { margin-top: 9px; }
+.acc-add input {
+  width: 100%; background: var(--bg); border: 1px solid var(--edge-lit);
+  color: var(--ink); font: 400 15px var(--body); padding: 6px 10px; outline: none;
+}
+.acc-add input:focus { border-color: var(--gold); }
+.acc-add input::placeholder { color: var(--faint); font-style: italic; }

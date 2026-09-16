@@ -8,10 +8,10 @@ import { Timeline } from './Timeline';
 import { MetricChart } from './MetricChart';
 import { Portrait } from './Portrait';
 import { LifeBars } from './LifeBars';
-import { Documents } from './Documents';
 import { SportsPicker } from './SportsPicker';
 import { QuestEdit } from './QuestEdit';
 import { MedicalModal } from './MedicalModal';
+import { DocsModal } from './DocsModal';
 import { Icon } from './Icon';
 import { Counters } from './Counters';
 import { Tip } from './Tip';
@@ -442,6 +442,7 @@ export function Sheet({
   const [span, setSpan] = useState(false);
   const [allOpen, setAllOpen] = useState<{ cat: string; title: string } | null>(null);
   const [medOpen, setMedOpen] = useState(false);
+  const [docsOpen, setDocsOpen] = useState(false);
   const [mapOpen, setMapOpen] = useState<{ kind: MapKind; title: string } | null>(null);
   // Clicking the map writes immediately, but the chip list below it waits on a
   // full sheet reload. This overlay keeps the two in step.
@@ -457,6 +458,7 @@ export function Sheet({
   const [overStatus, setOverStatus] = useState<string | null>(null);
   const [toast, setToast] = useState<ToastMsg | null>(null);
   const [cardEdit, setCardEdit] = useState(false);
+  const [newAcc, setNewAcc] = useState('');
   const [vaultOpen, setVaultOpen] = useState(isUnlocked());
 
   // The main view carries only what you would actually glance at. Everything
@@ -511,20 +513,46 @@ export function Sheet({
   };
 
   const active = sheet.quests.filter((q) => q.pinned);
-  const accomplishments = sheet.milestones
-    .filter((m) => m.achieved && m.pinned)
-    .map((m) => ({ m, skill: sheet.skills.find((k) => k.id === m.skill_id) }))
-    .filter((x) => x.skill)
-    .sort((a, b) => b.m.level - a.m.level);
+  const accomplishments: {
+    id: string; label: string; icon: string; on: string | null; kind: 'rung' | 'quest';
+  }[] = [
+    ...sheet.milestones
+      .filter((m) => m.achieved && m.pinned)
+      .map((m) => {
+        const skill = sheet.skills.find((k) => k.id === m.skill_id);
+        return skill
+          ? { id: m.id, label: m.label, icon: skill.name, on: m.achieved_on, kind: 'rung' as const }
+          : null;
+      })
+      .filter((x): x is NonNullable<typeof x> => x !== null),
+    ...sheet.quests
+      .filter((q) => q.pinned && q.status === 'done')
+      .map((q) => ({
+        id: q.id, label: q.title, icon: q.track || 'Exploring',
+        on: q.completed_on, kind: 'quest' as const,
+      })),
+  ].sort((a, b) => (b.on ?? '').localeCompare(a.on ?? ''));
 
   // Everything earned but not on the card, hardest first, so the edit view can
   // suggest rather than make you hunt through every ladder.
-  const candidates = sheet.milestones
-    .filter((m) => m.achieved && !m.pinned)
-    .map((m) => ({ m, skill: sheet.skills.find((k) => k.id === m.skill_id) }))
-    .filter((x) => x.skill)
-    .sort((a, b) => b.m.level - a.m.level)
-    .slice(0, 12);
+  const candidates: { id: string; label: string; icon: string; on: string | null; table: string }[] = [
+    ...sheet.milestones
+      .filter((m) => m.achieved && !m.pinned)
+      .map((m) => {
+        const skill = sheet.skills.find((k) => k.id === m.skill_id);
+        return skill
+          ? { id: m.id, label: m.label, icon: skill.name, on: m.achieved_on,
+              table: 'cs_skill_milestones', rank: m.level }
+          : null;
+      })
+      .filter((x): x is NonNullable<typeof x> => x !== null),
+    ...sheet.quests
+      .filter((q) => q.status === 'done' && !q.pinned)
+      .map((q) => ({
+        id: q.id, label: q.title, icon: q.track || 'Exploring',
+        on: q.completed_on, table: 'cs_quests', rank: 40,
+      })),
+  ].sort((a, b) => b.rank - a.rank).slice(0, 14);
 
   const focusMetrics = sheet.metrics
     .filter((m) => m.is_focus)
@@ -726,29 +754,53 @@ export function Sheet({
               </button>
             </div>
             <div className="accs">
-              {accomplishments.map(({ m, skill }) => (
-                <span className="acc" key={m.id} title={`${skill!.name} · level ${m.level}`}>
-                  <Icon name={skill!.name} />
-                  {m.label}
-                  {m.achieved_on && <span className="d"> {yearOf(m.achieved_on)}</span>}
+              {accomplishments.map((a) => (
+                <span className="acc" key={a.id}>
+                  <Icon name={a.icon} />
+                  {a.label}
+                  {a.on && <span className="d"> {yearOf(a.on)}</span>}
                   {cardEdit && (
                     <button className="unpin" title="Remove from card"
-                            onClick={async () => { await setPinned('cs_skill_milestones', m.id, false); onChanged(); }}>×</button>
+                            onClick={async () => {
+                              await setPinned(a.kind === 'rung' ? 'cs_skill_milestones' : 'cs_quests', a.id, false);
+                              onChanged();
+                            }}>×</button>
                   )}
                 </span>
               ))}
             </div>
+            {cardEdit && (
+              <div className="acc-add">
+                <input
+                  value={newAcc}
+                  placeholder="Add an accomplishment — type it and press Enter"
+                  onChange={(e) => setNewAcc(e.target.value)}
+                  onKeyDown={async (e) => {
+                    if (e.key !== 'Enter') return;
+                    const title = newAcc.trim();
+                    if (!title) return;
+                    await insertRows('cs_quests', [{
+                      user_id: userId, title, kind: 'side', track: '', phase: '',
+                      status: 'done', completed_on: null, progress_current: null,
+                      progress_total: null, note: '', display_order: 999,
+                      is_public: true, pinned: true,
+                    }]);
+                    setNewAcc('');
+                    onChanged();
+                  }}
+                />
+              </div>
+            )}
             {cardEdit && candidates.length > 0 && (
               <div className="acc-suggest">
                 <div className="d">Suggestions, hardest first — click to add</div>
                 <div className="accs">
-                  {candidates.map(({ m, skill }) => (
-                    <button className="acc ghost" key={m.id}
-                            title={`${skill!.name} · level ${m.level}`}
-                            onClick={async () => { await setPinned('cs_skill_milestones', m.id, true); onChanged(); }}>
-                      <Icon name={skill!.name} />
-                      {m.label}
-                      {m.achieved_on && <span className="d"> {yearOf(m.achieved_on)}</span>}
+                  {candidates.map((c) => (
+                    <button className="acc ghost" key={c.id}
+                            onClick={async () => { await setPinned(c.table as 'cs_quests', c.id, true); onChanged(); }}>
+                      <Icon name={c.icon} />
+                      {c.label}
+                      {c.on && <span className="d"> {yearOf(c.on)}</span>}
                       <span className="plus">+</span>
                     </button>
                   ))}
@@ -856,10 +908,7 @@ export function Sheet({
           <div>
             <DueTests sheet={sheet} />
 
-            <div className="sec">
-              Source documents <span className="count">{sheet.documents.length}</span>
-            </div>
-            <Documents docs={sheet.documents} />
+
 
             <div className="sec">
               <button className="sec-open" onClick={() => setAllOpen({ cat: 'labs', title: 'Bloodwork' })}>
@@ -867,6 +916,16 @@ export function Sheet({
               </button>
             </div>
             <MetricRows metrics={pick(HEADLINE_LABS)} sheet={sheet} onOpen={setChart} why />
+
+            <button className="med-line" onClick={() => setDocsOpen(true)}>
+              <span className="ml-label">Source documents</span>
+              <span className="d">
+                {sheet.documents.length
+                  ? `${sheet.documents.length} original report${sheet.documents.length > 1 ? 's' : ''}`
+                  : 'none stored yet'}
+              </span>
+              <span className="more">open</span>
+            </button>
 
             <button className="med-line" onClick={() => setMedOpen(true)}>
               <span className="ml-label">Medical history</span>
@@ -1188,6 +1247,7 @@ export function Sheet({
                   onClose={() => setMapOpen(null)} />
       )}
       {medOpen && <MedicalModal sheet={sheet} onClose={() => setMedOpen(false)} />}
+      {docsOpen && <DocsModal sheet={sheet} onClose={() => setDocsOpen(false)} />}
       {editQuest && (
         <QuestEdit quest={editQuest} onClose={() => setEditQuest(null)} onSaved={onChanged} />
       )}
