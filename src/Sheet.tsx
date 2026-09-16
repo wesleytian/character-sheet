@@ -333,9 +333,8 @@ export function Sheet({
   onPick: (k: PickerKind) => void;
   userId: string;
 }) {
-  const [view, setView] = useState<'character' | 'skills' | 'quests' | 'world' | 'people' | 'tally' | 'vault' | 'chronicle'>('character');
+  const [view, setView] = useState<'character' | 'skills' | 'main' | 'side' | 'bucket' | 'world' | 'people' | 'tally' | 'vault' | 'chronicle'>('character');
   const [chart, setChart] = useState<Metric | null>(null);
-  const [questTab, setQuestTab] = useState<'main' | 'side' | 'bucket'>('main');
   const [span, setSpan] = useState(false);
   const [allOpen, setAllOpen] = useState<{ cat: string; title: string } | null>(null);
   const [medOpen, setMedOpen] = useState(false);
@@ -414,6 +413,15 @@ export function Sheet({
     .map((m) => ({ m, skill: sheet.skills.find((k) => k.id === m.skill_id) }))
     .filter((x) => x.skill)
     .sort((a, b) => b.m.level - a.m.level);
+
+  // Everything earned but not on the card, hardest first, so the edit view can
+  // suggest rather than make you hunt through every ladder.
+  const candidates = sheet.milestones
+    .filter((m) => m.achieved && !m.pinned)
+    .map((m) => ({ m, skill: sheet.skills.find((k) => k.id === m.skill_id) }))
+    .filter((x) => x.skill)
+    .sort((a, b) => b.m.level - a.m.level)
+    .slice(0, 12);
 
   const focusMetrics = sheet.metrics
     .filter((m) => m.is_focus)
@@ -547,10 +555,12 @@ export function Sheet({
   const TABS = [
     ['character', 'Health', ''],
     ['skills', 'Skills', String(derived.length)],
-    ['quests', 'Quests', `${sheet.quests.filter((q) => q.status === 'done').length}/${sheet.quests.length}`],
+    ['main', 'Main Quests', `${main.filter((q) => q.status === 'done').length}/${main.length}`],
+    ['side', 'Side Quests', `${side.filter((q) => q.status === 'done').length}/${side.length}`],
+    ['bucket', 'Bucket List', `${bucket.filter((q) => q.status === 'done').length}/${bucket.length}`],
     ['world', 'World', String(been(countries).length)],
     ['people', 'People', ''],
-    ['tally', 'Counts', String(sheet.counters.filter((c) => c.value != null).length)],
+    ['tally', 'Lifetime', String(sheet.counters.filter((c) => c.value != null).length)],
     ['vault', 'Vault', ''],
     ['chronicle', 'Chronicle', ''],
   ] as const;
@@ -609,6 +619,23 @@ export function Sheet({
                 </span>
               ))}
             </div>
+            {cardEdit && candidates.length > 0 && (
+              <div className="acc-suggest">
+                <div className="d">Suggestions, hardest first — click to add</div>
+                <div className="accs">
+                  {candidates.map(({ m, skill }) => (
+                    <button className="acc ghost" key={m.id}
+                            title={`${skill!.name} · level ${m.level}`}
+                            onClick={async () => { await setPinned('cs_skill_milestones', m.id, true); onChanged(); }}>
+                      <Icon name={skill!.name} />
+                      {m.label}
+                      {m.achieved_on && <span className="d"> {yearOf(m.achieved_on)}</span>}
+                      <span className="plus">+</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -794,89 +821,95 @@ export function Sheet({
       )}
 
       {/* ---------------- QUESTS ---------------- */}
-      {view === 'quests' && (
+      {view === 'main' && (
         <>
           <div className="subtabs">
-            <button className={`subtab ${questTab === 'main' ? 'on' : ''}`} onClick={() => setQuestTab('main')}>
-              Main <span className="n">{main.filter((q) => q.status === 'done').length}/{main.length}</span>
-            </button>
-            <button className={`subtab ${questTab === 'side' ? 'on' : ''}`} onClick={() => setQuestTab('side')}>
-              Side <span className="n">{side.filter((q) => q.status === 'done').length}/{side.length}</span>
-            </button>
-            <button className={`subtab ${questTab === 'bucket' ? 'on' : ''}`} onClick={() => setQuestTab('bucket')}>
-              Bucket list <span className="n">{bucket.filter((q) => q.status === 'done').length}/{bucket.length}</span>
-            </button>
             <button className={`add ${editMode ? 'on' : ''}`} style={{ marginLeft: 'auto' }}
                     onClick={() => setEditMode((v) => !v)}>
               {editMode ? 'done editing' : 'edit'}
             </button>
             <button className="add" style={{ marginLeft: 6 }} onClick={() => onAdd('quest')}>+ quest</button>
           </div>
-          {questTab === 'bucket' ? (
-            <div className="cols">
-              {[0, 1].map((col) => (
-                <div key={col}>
-                  {bucketTracks.filter((_, i) => i % 2 === col).map((t) => {
-                    const rows = bucket.filter((q) => q.track === t);
-                    if (!rows.length) return null;
-                    return (
-                      <div key={t}>
-                        <div className="track-name">
-                          {t || 'Someday'}{' '}
-                          <span className="d">{rows.filter((q) => q.status === 'done').length}/{rows.length}</span>
-                        </div>
-                        {rows.filter((q) => q.status !== 'done').map(questRow)}
-                        {rows.filter((q) => q.status === 'done').map(questRow)}
-                      </div>
-                    );
-                  })}
-                </div>
-              ))}
-            </div>
-          ) : questTab === 'main' ? (
-            <div className="cols">
-              <div>{questGroups(main, ['active', 'locked'])}</div>
-              <div>{questGroups(main, ['done'])}</div>
-            </div>
-          ) : (
-            <>
-              {sideActive.length > 0 && (
-                <div className="qgroup active">
-                  <div className="qgroup-head">
-                    In progress <span className="num">{sideActive.length}</span>
-                  </div>
-                  <div className="cols">
-                    <div>{sideActive.filter((_, i) => i % 2 === 0).map(questRow)}</div>
-                    <div>{sideActive.filter((_, i) => i % 2 === 1).map(questRow)}</div>
-                  </div>
-                </div>
-              )}
-              <div className="cols">
-                {[0, 1].map((col) => (
-                  <div key={col}>
-                    {tracks.filter((_, i) => i % 2 === col).map((t) => {
-                      const rows = sideRest.filter((q) => q.track === t);
-                      if (!rows.length) return null;
-                      const doneN = rows.filter((q) => q.status === 'done').length;
-                      return (
-                        <div key={t}>
-                          <div className="track-name">
-                            {t || 'Other'} <span className="d">{doneN}/{rows.length}</span>
-                          </div>
-                          {rows.filter((q) => q.status !== 'done').map(questRow)}
-                          {rows.filter((q) => q.status === 'done').map(questRow)}
-                        </div>
-                      );
-                    })}
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
+          <div className="cols">
+            <div>{questGroups(main, ['active', 'locked'])}</div>
+            <div>{questGroups(main, ['done'])}</div>
+          </div>
         </>
       )}
 
-      {/* ---------------- WORLD ---------------- */}
+      {view === 'side' && (
+        <>
+          <div className="subtabs">
+            <button className={`add ${editMode ? 'on' : ''}`} style={{ marginLeft: 'auto' }}
+                    onClick={() => setEditMode((v) => !v)}>
+              {editMode ? 'done editing' : 'edit'}
+            </button>
+            <button className="add" style={{ marginLeft: 6 }} onClick={() => onAdd('quest')}>+ quest</button>
+          </div>
+          {sideActive.length > 0 && (
+            <div className="qgroup active">
+              <div className="qgroup-head">In progress <span className="num">{sideActive.length}</span></div>
+              <div className="cols">
+                <div>{sideActive.filter((_, i) => i % 2 === 0).map(questRow)}</div>
+                <div>{sideActive.filter((_, i) => i % 2 === 1).map(questRow)}</div>
+              </div>
+            </div>
+          )}
+          <div className="cols">
+            {[0, 1].map((col) => (
+              <div key={col}>
+                {tracks.filter((_, i) => i % 2 === col).map((t) => {
+                  const rows = sideRest.filter((q) => q.track === t);
+                  if (!rows.length) return null;
+                  const doneN = rows.filter((q) => q.status === 'done').length;
+                  return (
+                    <div key={t}>
+                      <div className="track-name">
+                        {t || 'Other'} <span className="d">{doneN}/{rows.length}</span>
+                      </div>
+                      {rows.filter((q) => q.status !== 'done').map(questRow)}
+                      {rows.filter((q) => q.status === 'done').map(questRow)}
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {view === 'bucket' && (
+        <>
+          <div className="subtabs">
+            <button className={`add ${editMode ? 'on' : ''}`} style={{ marginLeft: 'auto' }}
+                    onClick={() => setEditMode((v) => !v)}>
+              {editMode ? 'done editing' : 'edit'}
+            </button>
+            <button className="add" style={{ marginLeft: 6 }} onClick={() => onAdd('quest')}>+ quest</button>
+          </div>
+          <div className="cols">
+            {[0, 1].map((col) => (
+              <div key={col}>
+                {bucketTracks.filter((_, i) => i % 2 === col).map((t) => {
+                  const rows = bucket.filter((q) => q.track === t);
+                  if (!rows.length) return null;
+                  return (
+                    <div key={t}>
+                      <div className="track-name">
+                        {t || 'Someday'}{' '}
+                        <span className="d">{rows.filter((q) => q.status === 'done').length}/{rows.length}</span>
+                      </div>
+                      {rows.filter((q) => q.status !== 'done').map(questRow)}
+                      {rows.filter((q) => q.status === 'done').map(questRow)}
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
       {view === 'world' && (
         <div className="cols">
           <div>
@@ -970,7 +1003,7 @@ export function Sheet({
 
       {view === 'tally' && (
         <>
-          <div className="sec">Counts</div>
+          <div className="sec">Lifetime</div>
           <Counters counters={sheet.counters} atlas={sheet.atlas} userId={userId} onChanged={onChanged} />
         </>
       )}

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { NoteRow } from './types';
-import { resolveNote, answerNote } from './db';
+import { resolveNote, answerNote, deleteRow } from './db';
 import { useEscape } from './useEscape';
 
 const KINDS: [string, string, string][] = [
@@ -77,6 +77,12 @@ function InboxModal({
                       </button>
                       <span className="note-title">{n.title}</span>
                       {n.severity && <span className={`sev ${n.severity}`}>{n.severity}</span>}
+                      <button className="qdel" title="Delete for good"
+                              onClick={async () => {
+                                if (!confirm(`Delete "${n.title}"?`)) return;
+                                await deleteRow('cs_notes', n.id);
+                                onChanged();
+                              }}>×</button>
                     </div>
                     {n.body && <p className="note-body">{n.body}</p>}
                     {n.answer && (

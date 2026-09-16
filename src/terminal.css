@@ -1165,3 +1165,9 @@ span.cnum.masked {
 .person-rel { flex: none; width: 9em; font-size: 14px; color: var(--dim); }
 .row.person.crm .add { flex: none; }
 .row.person.crm { cursor: grab; }
+.acc-suggest { margin-top: 10px; border-top: 1px solid var(--edge); padding-top: 8px; }
+.acc-suggest .d { font-size: 12.5px; margin-bottom: 5px; }
+.acc.ghost { border-style: dashed; color: var(--dim); }
+.acc.ghost:hover { border-color: var(--gold); color: var(--ink); border-style: solid; }
+.acc .plus { color: var(--gold); margin-left: 6px; font-weight: 700; }
+.note-top .qdel { margin-left: 4px; }
