@@ -654,8 +654,10 @@ export function Sheet({
               </div>
               {rows.map(questRow)}
               {rows.length === 0 && dragId && <div className="qempty">Drop here</div>}
-              <NewQuest kind={kindFor(list)} status={st} track=""
-                        nextOrder={nextOrderFor(list)} onAdded={onChanged} userId={userId} />
+              {editMode && (
+                <NewQuest kind={kindFor(list)} status={st} track=""
+                          nextOrder={nextOrderFor(list)} onAdded={onChanged} userId={userId} />
+              )}
             </div>
           );
         })}
@@ -855,6 +857,11 @@ export function Sheet({
             <DueTests sheet={sheet} />
 
             <div className="sec">
+              Source documents <span className="count">{sheet.documents.length}</span>
+            </div>
+            <Documents docs={sheet.documents} />
+
+            <div className="sec">
               <button className="sec-open" onClick={() => setAllOpen({ cat: 'labs', title: 'Bloodwork' })}>
                 Bloodwork <span className="more">see all 135</span>
               </button>
@@ -945,7 +952,6 @@ export function Sheet({
                     onClick={() => setEditMode((v) => !v)}>
               {editMode ? 'done editing' : 'edit'}
             </button>
-            <button className="add" style={{ marginLeft: 6 }} onClick={() => onAdd('quest')}>+ quest</button>
           </div>
           <div className="cols">
             <div>{questGroups(main, ['active', 'locked'])}</div>
@@ -961,7 +967,6 @@ export function Sheet({
                     onClick={() => setEditMode((v) => !v)}>
               {editMode ? 'done editing' : 'edit'}
             </button>
-            <button className="add" style={{ marginLeft: 6 }} onClick={() => onAdd('quest')}>+ quest</button>
           </div>
           {sideActive.length > 0 && (
             <div className="qgroup active">
@@ -986,8 +991,10 @@ export function Sheet({
                       </div>
                       {rows.filter((q) => q.status !== 'done').map(questRow)}
                       {rows.filter((q) => q.status === 'done').map(questRow)}
-                      <NewQuest kind="side" status="locked" track={t}
-                                nextOrder={nextOrderFor(rows)} onAdded={onChanged} userId={userId} />
+                      {editMode && (
+                        <NewQuest kind="side" status="locked" track={t}
+                                  nextOrder={nextOrderFor(rows)} onAdded={onChanged} userId={userId} />
+                      )}
                     </div>
                   );
                 })}
@@ -1015,8 +1022,10 @@ export function Sheet({
                       </div>
                       {rows.filter((q) => q.status !== 'done').map(questRow)}
                       {rows.filter((q) => q.status === 'done').map(questRow)}
-                      <NewQuest kind="bucket" status="locked" track={t}
-                                nextOrder={nextOrderFor(rows)} onAdded={onChanged} userId={userId} />
+                      {editMode && (
+                        <NewQuest kind="bucket" status="locked" track={t}
+                                  nextOrder={nextOrderFor(rows)} onAdded={onChanged} userId={userId} />
+                      )}
                     </div>
                   );
                 })}
@@ -1163,8 +1172,7 @@ export function Sheet({
             <span className="d">{sheet.quests.filter((q) => q.status === 'active').length} quests active</span>
           </div>
           <Timeline sheet={sheet} />
-          <div className="sec">Source documents <span className="count">{sheet.documents.length}</span></div>
-          <Documents docs={sheet.documents} />
+
         </>
       )}
 

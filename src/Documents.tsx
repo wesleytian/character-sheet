@@ -4,7 +4,12 @@ import { signedUrl } from './db';
 /** The reports the readings actually came from, openable. */
 export function Documents({ docs }: { docs: DocumentRow[] }) {
   if (!docs.length) {
-    return <p className="d">Nothing uploaded yet. Files dropped into the prompt are kept here.</p>;
+    return (
+      <p className="d">
+        Nothing stored yet. Drop a DEXA, blood panel or VO2 report into the prompt
+        at the bottom — it gets read, logged, and the original is kept here.
+      </p>
+    );
   }
   const open = async (path: string) => {
     try { window.open(await signedUrl(path), '_blank', 'noopener'); } catch { /* link expired */ }
