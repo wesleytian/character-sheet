@@ -124,7 +124,8 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
    to grow instead, or the bar collapses to its minimum. */
 .row .v { flex: none; min-width: 7.5ch; text-align: right; }
 .row .v.grow { flex: 1; min-width: 60px; text-align: left; }
-.row .v .u { color: var(--dim); font-size: 12.5px; margin-left: 4px; }
+.metric-row .u { color: var(--dim); font-size: 12.5px; text-align: left;
+  overflow: hidden; text-overflow: ellipsis; }
 .row .v b { color: var(--ink); font-weight: 600; }
 
 /* ---------- meters ---------- */
@@ -438,7 +439,9 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
    meter or a target, so the ? column always lines up. */
 .metric-row {
   width: 100%; text-align: left; display: grid;
-  grid-template-columns: 11ch minmax(7.5ch, max-content) 1fr 7.5ch 20px;
+  /* Every column is a fixed width: each row is its own grid, so max-content
+     would size independently per row and the columns would not line up. */
+  grid-template-columns: 11ch 6ch 9ch 1fr 7.5ch 20px;
   align-items: center; gap: 9px; white-space: nowrap;
 }
 .metric-row .k { width: auto; }
@@ -448,7 +451,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .metric-row .spark-n { width: auto; text-align: right; }
 .metric-row .whycell { display: flex; justify-content: flex-end; }
 @media (max-width: 640px) {
-  .metric-row { grid-template-columns: 10ch minmax(6ch, max-content) 1fr 6ch 20px; }
+  .metric-row { grid-template-columns: 9ch 5.5ch 7ch 1fr 6ch 20px; }
 }
 .metric-row:hover { background: var(--panel); }
 .metric-row .spark { color: var(--faint); font-size: 12px; }

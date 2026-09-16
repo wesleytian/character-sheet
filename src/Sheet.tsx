@@ -282,15 +282,11 @@ function MetricRows({ metrics, sheet, onOpen, why }:
                   title={latest ? `Last ${latest.measured_at}${latest.source ? ` · ${latest.source}` : ''}` : 'No readings'}>
             <span className="k" title={m.label}>{shortLabel(m)}</span>
             <span className="v">
-              {latest?.value != null ? (
-                <>
-                  <b className={`num ${off ? 'y' : ''}`}>{latest.value}</b>
-                  <span className="u">{m.unit}</span>
-                </>
-              ) : (
-                <span className="d">not recorded</span>
-              )}
+              {latest?.value != null
+                ? <b className={`num ${off ? 'y' : ''}`}>{latest.value}</b>
+                : <span className="d">—</span>}
             </span>
+            <span className="u">{latest?.value != null ? m.unit : 'not recorded'}</span>
             <span className="mcell">
               {latest?.value != null && (m.target_low != null || m.target_high != null) && (
                 <RangeMeter value={Number(latest.value)} low={m.target_low} high={m.target_high} />
