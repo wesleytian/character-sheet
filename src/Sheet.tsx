@@ -750,7 +750,7 @@ export function Sheet({
                 </div>
                 <button className="row metric-row" onClick={() => setSpan((v) => !v)}>
                   <span className="k">Healthspan</span>
-                  <span className="v"><Meter pct={health.pct} tone="jade" label="healthspan elapsed" /></span>
+                  <span className="v grow"><Meter pct={health.pct} tone="jade" label="healthspan elapsed" /></span>
                 </button>
                 {span && (
                   <>
@@ -762,7 +762,7 @@ export function Sheet({
                     </div>
                     <div className="row">
                       <span className="k">Lifespan</span>
-                      <span className="v"><Meter pct={life.pct} tone="arcane" label="lifespan elapsed" /></span>
+                      <span className="v grow"><Meter pct={life.pct} tone="arcane" label="lifespan elapsed" /></span>
                     </div>
                     <div className="row">
                       <span className="k d">left</span>
@@ -988,7 +988,7 @@ export function Sheet({
             {byContinent.map((c) => (
               <div className="row" key={c.name}>
                 <span className="k">{c.name}</span>
-                <span className="v"><Meter pct={(c.have / c.total) * 100} tone={c.have ? 'gold' : 'ember'} label={c.name} />
+                <span className="v grow"><Meter pct={(c.have / c.total) * 100} tone={c.have ? 'gold' : 'ember'} label={c.name} />
                 </span>
                 <span className="num d">{c.have}/{c.total}</span>
               </div>

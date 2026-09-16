@@ -120,7 +120,10 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .row { display: flex; gap: 9px; align-items: baseline; padding: 1px 0; white-space: nowrap; }
 .row .k { color: var(--dim); flex: none; width: 11ch; font-size: 15px;
   overflow: hidden; text-overflow: ellipsis; }
+/* Value cells are fixed-width so numbers line up; a cell holding a meter has
+   to grow instead, or the bar collapses to its minimum. */
 .row .v { flex: none; min-width: 7.5ch; text-align: right; }
+.row .v.grow { flex: 1; min-width: 60px; text-align: left; }
 .row .v .u { color: var(--dim); font-size: 12.5px; margin-left: 4px; }
 .row .v b { color: var(--ink); font-weight: 600; }
 
