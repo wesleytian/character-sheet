@@ -207,9 +207,12 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 
 /* ---------- tooltip ---------- */
 .tip { position: relative; display: inline-flex; align-items: center; gap: 7px; }
+/* Anchored from the right by default: nearly every ? sits at the end of a
+   row, so a left-anchored panel runs off the edge of the page. */
 .tip-body {
-  position: absolute; z-index: 90; left: 0; top: calc(100% + 6px);
-  width: min(340px, 90vw); background: var(--panel-lift);
+  position: absolute; z-index: 90; right: 0; left: auto; top: calc(100% + 6px);
+  width: max-content; max-width: min(360px, 70vw);
+  background: var(--panel-lift);
   border: 1px solid var(--edge-lit); padding: 10px 12px;
   color: var(--ink-soft); font-size: 14.5px; line-height: 1.5;
   box-shadow: 0 14px 34px -12px #000;
@@ -885,7 +888,7 @@ button.skill-name:hover { color: var(--gold); }
 .row.counter .more { font-size: 12px; color: var(--faint); border-bottom: 1px solid var(--edge-lit); margin-left: 8px; }
 .row.counter:hover .more { color: var(--gold); }
 .row.counter .tip { margin-left: 4px; }
-.row.counter .tip-body { right: 0; left: auto; width: min(260px, 70vw); }
+.row.counter .tip-body { max-width: min(260px, 70vw); }
 .tl-item .tag.life { color: var(--gold); }
 
 /* ---------- health score ---------- */
