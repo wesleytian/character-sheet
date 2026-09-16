@@ -1,0 +1,25 @@
+import { DocumentRow } from './types';
+import { signedUrl } from './db';
+
+/** The reports the readings actually came from, openable. */
+export function Documents({ docs }: { docs: DocumentRow[] }) {
+  if (!docs.length) {
+    return <p className="d">Nothing uploaded yet. Files dropped into the prompt are kept here.</p>;
+  }
+  const open = async (path: string) => {
+    try { window.open(await signedUrl(path), '_blank', 'noopener'); } catch { /* link expired */ }
+  };
+  return (
+    <>
+      {docs.map((d) => (
+        <button className="row metric-row" key={d.id} onClick={() => open(d.storage_path)}>
+          <span className="k num">{d.created_at.slice(0, 10)}</span>
+          <span className="v">{d.name}</span>
+          <span className="d">
+            {d.size_bytes ? `${Math.round(d.size_bytes / 1024)} KB` : ''}
+          </span>
+        </button>
+      ))}
+    </>
+  );
+}
