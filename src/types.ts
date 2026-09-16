@@ -29,6 +29,10 @@ export interface Metric {
   display_order: number;
   panel: string;
   is_focus: boolean;
+  cadence_months: number | null;
+  test_group: string;
+  target_source: string;
+  why: string;
   focus_order: number;
   focus_goal: string;
   is_public: boolean;
@@ -52,6 +56,7 @@ export interface Skill {
   mastery_def: string;
   icon: string;
   pursuing: boolean;
+  hidden: boolean;
   display_order: number;
   is_public: boolean;
 }

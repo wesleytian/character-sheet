@@ -1021,3 +1021,11 @@ button.skill-name:hover { color: var(--gold); }
 }
 .vault-lock-bar input:focus { border-color: var(--gold); }
 .vault-lock-bar .btn { margin-left: auto; }
+.row.due.over { background: rgba(180,72,60,.07); }
+.goal-head { display: flex; align-items: center; gap: 9px; }
+.ladder-foot { display: flex; align-items: center; gap: 12px; margin-top: 9px;
+  border-top: 1px solid var(--edge); padding-top: 7px; }
+.ladder-hint { border: 0; margin: 0; padding: 0; flex: 1; }
+.archive-btn { font-size: 12px; color: var(--faint); border-bottom: 1px solid var(--edge-lit); }
+.archive-btn:hover { color: var(--ember); }
+.metric-row .tip { margin-left: 6px; }

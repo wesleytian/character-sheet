@@ -460,3 +460,8 @@ export async function answerNote(id: string, answer: string) {
   const { error } = await supabase.from('cs_notes').update({ answer }).eq('id', id);
   if (error) throw new Error(error.message);
 }
+
+export async function setSkillHidden(id: string, hidden: boolean) {
+  const { error } = await supabase.from('cs_skills').update({ hidden }).eq('id', id);
+  if (error) throw new Error(error.message);
+}

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Metric, Measurement } from './types';
 import { setMetricGoal, setMetricFocus } from './db';
 import { useEscape } from './useEscape';
+import { Tip } from './Tip';
 
 const W = 640;
 const H = 240;
@@ -175,7 +176,10 @@ export function MetricChart({
         </div>
 
         <div className="goal-edit">
-          <div className="goal-head">Your goal</div>
+          <div className="goal-head">
+            Your goal
+            {metric.target_source && <Tip body={metric.target_source} />}
+          </div>
           <div className="goal-row">
             <select value={dir} onChange={(e) => { setDir(e.target.value); setSaved(false); }}>
               <option value="lower">Keep it under</option>

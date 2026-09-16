@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Sheet as SheetData, Quest, Metric, AtlasEntry } from './types';
 import { deriveSkill, rankOf, DerivedSkill } from './skills';
-import { toggleMilestone, setQuestStatus, deleteRow, renameQuest, setFriendOrder, setPinned } from './db';
+import { toggleMilestone, setQuestStatus, deleteRow, renameQuest, setFriendOrder, setPinned, setSkillHidden } from './db';
 import { AddKind } from './Modal';
 import { PickerKind } from './Picker';
 import { Timeline } from './Timeline';
@@ -16,6 +16,7 @@ import { Icon } from './Icon';
 import { Counters } from './Counters';
 import { Tip } from './Tip';
 import { InboxButton } from './Inbox';
+import { DueTests } from './DueTests';
 import { Toast, ToastMsg } from './Toast';
 import { HealthScoreCard } from './HealthScore';
 import { Vault } from './Vault';
@@ -191,7 +192,8 @@ function lifeMath(birthday: string | null, span: number) {
   };
 }
 
-function SkillRow({ d, onToggle }: { d: DerivedSkill; onToggle: (id: string, v: boolean) => void }) {
+function SkillRow({ d, onToggle, onHide }:
+  { d: DerivedSkill; onToggle: (id: string, v: boolean) => void; onHide: (id: string, v: boolean) => void }) {
   const [open, setOpen] = useState(false);
   const ref = useDismiss(open, () => setOpen(false));
   const { skill, level, current, next, ladder } = d;
@@ -199,7 +201,7 @@ function SkillRow({ d, onToggle }: { d: DerivedSkill; onToggle: (id: string, v: 
   const generic = skill.category === 'sport' || skill.category === 'hobby';
   return (
     <div className="skill" ref={ref}>
-      <div className={`skill-top ${skill.pursuing === false ? 'dormant' : ''}`}>
+      <div className={`skill-top ${skill.pursuing === false || skill.hidden ? 'dormant' : ''}`}>
         <button className="skill-name" onClick={() => setOpen((v) => !v)}
                 title="Click to update level">
           <span className="ic"><Icon name={skill.name} /></span>{skill.name}
@@ -241,14 +243,21 @@ function SkillRow({ d, onToggle }: { d: DerivedSkill; onToggle: (id: string, v: 
               </span>
             </button>
           ))}
-          <div className="ladder-hint">Click any rung to tick or untick it — the level follows.</div>
+          <div className="ladder-foot">
+            <span className="ladder-hint">Click any rung to tick or untick it — the level follows.</span>
+            <button className="archive-btn"
+                    onClick={async () => { await onHide(skill.id, !skill.hidden); }}>
+              {skill.hidden ? 'unarchive' : 'archive'}
+            </button>
+          </div>
         </div>
       )}
     </div>
   );
 }
 
-function MetricRows({ metrics, sheet, onOpen }: { metrics: Metric[]; sheet: SheetData; onOpen: (m: Metric) => void }) {
+function MetricRows({ metrics, sheet, onOpen, why }:
+  { metrics: Metric[]; sheet: SheetData; onOpen: (m: Metric) => void; why?: boolean }) {
   if (!metrics.length) return null;
   return (
     <>
@@ -297,6 +306,9 @@ function MetricRows({ metrics, sheet, onOpen }: { metrics: Metric[]; sheet: Shee
               <span className="spark" title={`${history} readings`}>
                 <Spark points={series.slice(-6)} direction={m.direction} />
               </span>
+            )}
+            {why && m.why && (
+              <span onClick={(e) => e.stopPropagation()}><Tip body={m.why} /></span>
             )}
           </button>
         );
@@ -429,6 +441,7 @@ export function Sheet({
   const markPending = (kind: string) => (name: string, on: boolean) =>
     setAtlasPending((v) => ({ ...v, [`${kind}:${name}`]: on }));
   const [sportsOpen, setSportsOpen] = useState<'sport' | 'hobby' | null>(null);
+  const [showHidden, setShowHidden] = useState(false);
   const [editQuest, setEditQuest] = useState<Quest | null>(null);
   const [editMode, setEditMode] = useState(false);
   const [popped, setPopped] = useState<string | null>(null);
@@ -447,7 +460,9 @@ export function Sheet({
   const pick = (keys: string[]) =>
     keys.map((k) => sheet.metrics.find((m) => m.key === k)).filter(Boolean) as Metric[];
   const p = sheet.profile;
-  const derived = sheet.skills.map((s) => deriveSkill(s, sheet.milestones)).sort((a, b) => b.level - a.level);
+  const allDerived = sheet.skills.map((s) => deriveSkill(s, sheet.milestones)).sort((a, b) => b.level - a.level);
+  const derived = showHidden ? allDerived : allDerived.filter((d) => !d.skill.hidden);
+  const hiddenCount = allDerived.filter((d) => d.skill.hidden).length;
   const totalLevel = derived.reduce((n, d) => n + d.level, 0);
   const ceiling = derived.length * 100;
 
@@ -461,6 +476,7 @@ export function Sheet({
   const health = lifeMath(p?.birthday ?? null, p?.healthspan_years ?? 80);
 
   const toggle = async (id: string, v: boolean) => { await toggleMilestone(id, v); onChanged(); };
+  const hideSkill = async (id: string, v: boolean) => { await setSkillHidden(id, v); onChanged(); };
   const celebrate = (q: Quest) => {
     setPopped(q.id);
     window.setTimeout(() => setPopped((p) => (p === q.id ? null : p)), 700);
@@ -769,23 +785,25 @@ export function Sheet({
               </button>
               <span className="count"><button className="add" onClick={() => onAdd('measurement')}>+ record</button></span>
             </div>
-            <MetricRows metrics={pick(PRIMARY_BODY)} sheet={sheet} onOpen={setChart} />
+            <MetricRows metrics={pick(PRIMARY_BODY)} sheet={sheet} onOpen={setChart} why />
 
             <div className="sec">
               <button className="sec-open" onClick={() => setAllOpen({ cat: 'performance', title: 'Performance' })}>
                 Performance <span className="more">see all</span>
               </button>
             </div>
-            <MetricRows metrics={pick(PRIMARY_PERF)} sheet={sheet} onOpen={setChart} />
+            <MetricRows metrics={pick(PRIMARY_PERF)} sheet={sheet} onOpen={setChart} why />
           </div>
 
           <div>
+            <DueTests sheet={sheet} />
+
             <div className="sec">
               <button className="sec-open" onClick={() => setAllOpen({ cat: 'labs', title: 'Bloodwork' })}>
                 Bloodwork <span className="more">see all 135</span>
               </button>
             </div>
-            <MetricRows metrics={pick(HEADLINE_LABS)} sheet={sheet} onOpen={setChart} />
+            <MetricRows metrics={pick(HEADLINE_LABS)} sheet={sheet} onOpen={setChart} why />
 
             <button className="med-line" onClick={() => setMedOpen(true)}>
               <span className="ml-label">Medical history</span>
@@ -811,6 +829,12 @@ export function Sheet({
               <button className="add" style={{ marginLeft: 8 }} onClick={() => setSportsOpen('sport')}>sports</button>
               <button className="add" style={{ marginLeft: 6 }} onClick={() => setSportsOpen('hobby')}>hobbies</button>
               <button className="add" style={{ marginLeft: 6 }} onClick={() => onAdd('skill')}>+ skill</button>
+              {hiddenCount > 0 && (
+                <button className={`add ${showHidden ? 'on' : ''}`} style={{ marginLeft: 6 }}
+                        onClick={() => setShowHidden((v) => !v)}>
+                  {showHidden ? 'hide archived' : `${hiddenCount} archived`}
+                </button>
+              )}
             </span>
           </div>
           {(() => {
@@ -848,7 +872,7 @@ export function Sheet({
                         <div className="group-head">
                           {label} <span className="d">{group.length} · {group.reduce((n, d) => n + d.level, 0)} pts</span>
                         </div>
-                        {group.map((d) => <SkillRow key={d.skill.id} d={d} onToggle={toggle} />)}
+                        {group.map((d) => <SkillRow key={d.skill.id} d={d} onToggle={toggle} onHide={hideSkill} />)}
                       </div>
                     ))}
                   </div>
