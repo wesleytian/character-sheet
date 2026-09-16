@@ -1154,7 +1154,13 @@ span.cnum.masked {
 }
 .row.person.drop-before::before { top: -1px; }
 .row.person.drop-after::after { bottom: -1px; }
-.person-name { flex: 1; min-width: 0; text-align: left; }
+/* `.row .v` is more specific than a bare class, so these need the same
+   two-part selector to win. */
+.row .v.person-name {
+  flex: 1; min-width: 0; text-align: left;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.row.person.crm .add { margin-left: auto; }
 .person-rel { flex: none; width: 9em; font-size: 14px; color: var(--dim); }
 .row.person.crm .add { flex: none; }
 .row.person.crm { cursor: grab; }
