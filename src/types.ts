@@ -64,6 +64,8 @@ export interface Skill {
   icon: string;
   pursuing: boolean;
   hidden: boolean;
+  /** A carried-over self-rating, used only while no rung is ticked. */
+  self_level: number | null;
   display_order: number;
   is_public: boolean;
 }
@@ -95,6 +97,9 @@ export interface Quest {
   display_order: number;
   is_public: boolean;
   pinned: boolean;
+  parent_id: string | null;
+  /** Title blurred on screen until the vault passcode is entered. */
+  is_private: boolean;
 }
 
 export interface AtlasEntry {
@@ -174,6 +179,11 @@ export interface PersonRow {
   display_order: number; is_public: boolean;
 }
 
+export interface Checkup {
+  id: string; name: string; cadence_months: number;
+  last_done: string | null; note: string; display_order: number;
+}
+
 export interface Sheet {
   profile: Profile | null;
   metrics: Metric[];
@@ -190,6 +200,7 @@ export interface Sheet {
   items: ItemRow[];
   notes: NoteRow[];
   people: PersonRow[];
+  checkups: Checkup[];
 }
 
 export const EMPTY_SHEET: Sheet = {
@@ -208,4 +219,5 @@ export const EMPTY_SHEET: Sheet = {
   items: [],
   notes: [],
   people: [],
+  checkups: [],
 };

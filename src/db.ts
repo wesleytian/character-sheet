@@ -4,9 +4,74 @@ import {
   SEED_SKILLS, SEED_QUESTS, SEED_METRICS, SEED_ATLAS, SEED_PROFILE, SEED_MEASUREMENTS,
 } from './seed';
 import { SPORT_LADDER } from './catalog';
+import { Op, OpInput, enqueue, emitOp, looksOffline } from './offline';
 
+/**
+ * Demo mode shows a disguised sheet to someone else; nothing it does may reach
+ * the real database, so every write becomes a no-op at this one choke point
+ * rather than being guarded at each of the forty call sites.
+ */
+let demoMode = false;
+export function setDemoMode(on: boolean) { demoMode = on; }
+export const inDemoMode = () => demoMode;
+
+const now = () => new Date().toISOString();
+const today = () => now().slice(0, 10);
+
+/** Performs one op for real. Exported so the offline queue can replay it. */
+export async function runOp(op: Op): Promise<void> {
+  const err = op.kind === 'insert'
+    ? (await supabase.from(op.table).insert(op.rows)).error
+    : op.kind === 'upsert'
+    ? (await supabase.from(op.table).upsert(op.rows, { onConflict: op.onConflict })).error
+    : op.kind === 'update'
+      ? (await supabase.from(op.table).update(op.patch).eq('id', op.id)).error
+      : op.kind === 'delete'
+        ? (await supabase.from(op.table).delete().eq('id', op.id)).error
+        : (await supabase.from('cs_profile').update(op.patch).eq('user_id', op.userId)).error;
+  if (err) throw new Error(err.message);
+}
+
+/**
+ * Every write goes through here: straight to Supabase when there is a
+ * connection, into the durable queue when there is not. A queued write is not
+ * an error - the caller carries on and the UI stays responsive on a plane.
+ */
+async function write(op: OpInput): Promise<void> {
+  const full = { ...op, at: Date.now() } as Op;
+  // Announce first: the click should land on screen now, not after the server
+  // agrees. In demo mode this is the whole effect - it never goes further.
+  emitOp(full);
+  if (demoMode) return;
+  try {
+    await runOp(full);
+  } catch (e) {
+    if (!looksOffline(e)) throw e;
+    enqueue(full);
+  }
+}
+
+/**
+ * The access token can be expired at boot: supabase-js refreshes in the
+ * background, but the first load fires before it finishes and comes back
+ * "JWT expired". That used to surface as a red banner over a cached sheet,
+ * which looks exactly like data going missing - anything added since the cache
+ * was written simply was not there. So refresh once and try again.
+ */
 export async function loadSheet(userId: string): Promise<Sheet> {
-  const [profile, metrics, measurements, skills, milestones, quests, atlas, medical, documents, counters, events, money, items, notes, people] =
+  try {
+    return await fetchSheet(userId);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (!/jwt|token.*expire|expired|not authenticated/i.test(msg)) throw e;
+    const { error } = await supabase.auth.refreshSession();
+    if (error) throw new Error(`session expired, please sign in again: ${error.message}`);
+    return fetchSheet(userId);
+  }
+}
+
+async function fetchSheet(userId: string): Promise<Sheet> {
+  const [profile, metrics, measurements, skills, milestones, quests, atlas, medical, documents, counters, events, money, items, notes, people, checkups] =
     await Promise.all([
       supabase.from('cs_profile').select('*').eq('user_id', userId).maybeSingle(),
       supabase.from('cs_metrics').select('*').eq('user_id', userId).order('display_order'),
@@ -23,9 +88,10 @@ export async function loadSheet(userId: string): Promise<Sheet> {
       supabase.from('cs_items').select('*').eq('user_id', userId).order('created_at'),
       supabase.from('cs_notes').select('*').eq('user_id', userId).order('display_order'),
       supabase.from('cs_people').select('*').eq('user_id', userId).order('display_order'),
+      supabase.from('cs_checkups').select('*').eq('user_id', userId).order('display_order'),
     ]);
 
-  const firstError = [profile, metrics, measurements, skills, milestones, quests, atlas, medical, documents, counters, events, money, items, notes, people]
+  const firstError = [profile, metrics, measurements, skills, milestones, quests, atlas, medical, documents, counters, events, money, items, notes, people, checkups]
     .find((r) => r.error)?.error;
   if (firstError) throw new Error(firstError.message);
 
@@ -46,6 +112,7 @@ export async function loadSheet(userId: string): Promise<Sheet> {
     items: items.data ?? [],
     notes: notes.data ?? [],
     people: people.data ?? [],
+    checkups: checkups.data ?? [],
   };
 }
 
@@ -57,9 +124,20 @@ export async function loadSheet(userId: string): Promise<Sheet> {
  * rejects a batch whose objects have differing keys ("All object keys must
  * match"), which is silent unless you check `error`.
  */
+/**
+ * Whether seeding has anything left to do. Answered from a sheet we have
+ * already loaded, so the common case - an account that was seeded months ago -
+ * costs no extra round trips at all.
+ */
+export function needsSeed(sheet: Sheet): boolean {
+  return !sheet.profile || !sheet.metrics.length || !sheet.quests.length
+    || !sheet.atlas.length || !sheet.skills.length;
+}
+
 export async function seedIfEmpty(
   userId: string,
   onProgress: (msg: string) => void = () => {},
+  loaded?: Sheet,
 ): Promise<string[]> {
   const notes: string[] = [];
   const check = (label: string, error: { message: string } | null) => {
@@ -68,7 +146,17 @@ export async function seedIfEmpty(
     onProgress(label);
   };
 
+  // When the caller already holds the sheet, believe it rather than asking
+  // the server to count rows we just read.
+  const known: Record<string, boolean> = loaded ? {
+    cs_metrics: !loaded.metrics.length,
+    cs_quests: !loaded.quests.length,
+    cs_atlas: !loaded.atlas.length,
+    cs_skills: !loaded.skills.length,
+  } : {};
+
   const isEmpty = async (table: string) => {
+    if (table in known) return known[table];
     const { count, error } = await supabase
       .from(table)
       .select('id', { count: 'exact', head: true })
@@ -79,11 +167,9 @@ export async function seedIfEmpty(
 
   // Only seed the profile when there isn't one. An unconditional upsert here
   // silently reverted every later edit (lifespan, birthplace) on the next load.
-  const { data: existingProfile } = await supabase
-    .from('cs_profile')
-    .select('user_id')
-    .eq('user_id', userId)
-    .maybeSingle();
+  const existingProfile = loaded
+    ? loaded.profile
+    : (await supabase.from('cs_profile').select('user_id').eq('user_id', userId).maybeSingle()).data;
   if (!existingProfile) {
     const { error: pErr } = await supabase
       .from('cs_profile')
@@ -207,43 +293,40 @@ export async function seedIfEmpty(
 }
 
 export async function toggleMilestone(id: string, achieved: boolean) {
-  const { error } = await supabase
-    .from('cs_skill_milestones')
-    .update({
-      achieved,
-      achieved_on: achieved ? new Date().toISOString().slice(0, 10) : null,
-    })
-    .eq('id', id);
-  if (error) throw new Error(error.message);
+  await write({ kind: 'update', table: 'cs_skill_milestones', id,
+    patch: { achieved, achieved_on: achieved ? today() : null } });
 }
 
 export async function setQuestStatus(id: string, status: string) {
-  const { error } = await supabase
-    .from('cs_quests')
-    .update({
-      status,
-      completed_on: status === 'done' ? new Date().toISOString().slice(0, 10) : null,
-    })
-    .eq('id', id);
-  if (error) throw new Error(error.message);
+  await write({ kind: 'update', table: 'cs_quests', id,
+    patch: { status, completed_on: status === 'done' ? today() : null } });
 }
 
 export async function insertRows(table: string, rows: Record<string, unknown>[]) {
-  const { error } = await supabase.from(table).insert(rows);
-  if (error) throw new Error(error.message);
+  await write({ kind: 'insert', table, rows });
+}
+
+/**
+ * Insert, or update in place when the row already exists. Use this wherever a
+ * row is identified by what it means rather than by its id - a country is the
+ * country, so ticking one twice must not leave two of it. Plain insert writes
+ * blind, which duplicates whenever the caller's snapshot is behind the server:
+ * two fast clicks, a double click, or an offline queue replayed after a reload.
+ * `onConflict` must name a unique index or Postgres rejects the write.
+ */
+export async function upsertRows(
+  table: string, rows: Record<string, unknown>[], onConflict: string,
+) {
+  await write({ kind: 'upsert', table, rows, onConflict });
 }
 
 export async function deleteRow(table: string, id: string) {
-  const { error } = await supabase.from(table).delete().eq('id', id);
-  if (error) throw new Error(error.message);
+  await write({ kind: 'delete', table, id });
 }
 
 export async function updateProfile(userId: string, patch: Record<string, unknown>) {
-  const { error } = await supabase
-    .from('cs_profile')
-    .update({ ...patch, updated_at: new Date().toISOString() })
-    .eq('user_id', userId);
-  if (error) throw new Error(error.message);
+  await write({ kind: 'profile', table: 'cs_profile', userId,
+    patch: { ...patch, updated_at: now() } });
 }
 
 /**
@@ -384,8 +467,7 @@ export async function setAvatar(userId: string, file: File) {
 }
 
 export async function setMetricFocus(id: string, on: boolean) {
-  const { error } = await supabase.from('cs_metrics').update({ is_focus: on }).eq('id', id);
-  if (error) throw new Error(error.message);
+  await write({ kind: 'update', table: 'cs_metrics', id, patch: { is_focus: on } });
 }
 
 /**
@@ -429,78 +511,60 @@ export async function setSportLevel(
 }
 
 export async function renameQuest(id: string, title: string) {
-  const { error } = await supabase.from('cs_quests').update({ title }).eq('id', id);
-  if (error) throw new Error(error.message);
+  await write({ kind: 'update', table: 'cs_quests', id, patch: { title } });
 }
 
 export async function setMetricGoal(
   id: string,
   goal: { target_low: number | null; target_high: number | null; direction: string },
 ) {
-  const { error } = await supabase.from('cs_metrics').update(goal).eq('id', id);
-  if (error) throw new Error(error.message);
+  await write({ kind: 'update', table: 'cs_metrics', id, patch: goal });
 }
 
 export async function setCounter(id: string, value: number | null) {
-  const { error } = await supabase
-    .from('cs_counters')
-    .update({ value, updated_at: new Date().toISOString() })
-    .eq('id', id);
-  if (error) throw new Error(error.message);
+  await write({ kind: 'update', table: 'cs_counters', id, patch: { value, updated_at: now() } });
 }
 
 export async function setFriendOrder(userId: string, names: string[]) {
-  const { error } = await supabase
-    .from('cs_profile').update({ friend_order: names }).eq('user_id', userId);
-  if (error) throw new Error(error.message);
+  await write({ kind: 'profile', table: 'cs_profile', userId, patch: { friend_order: names } });
 }
 
 export async function setMoney(id: string, value: number | null) {
-  const { error } = await supabase
-    .from('cs_money').update({ value, recorded_on: new Date().toISOString().slice(0, 10) }).eq('id', id);
-  if (error) throw new Error(error.message);
+  await write({ kind: 'update', table: 'cs_money', id, patch: { value, recorded_on: today() } });
 }
 
 export async function setPinned(table: 'cs_quests' | 'cs_skill_milestones', id: string, pinned: boolean) {
-  const { error } = await supabase.from(table).update({ pinned }).eq('id', id);
-  if (error) throw new Error(error.message);
+  await write({ kind: 'update', table, id, patch: { pinned } });
 }
 
 export async function updateItem(id: string, patch: Record<string, unknown>) {
-  const { error } = await supabase.from('cs_items').update(patch).eq('id', id);
-  if (error) throw new Error(error.message);
+  await write({ kind: 'update', table: 'cs_items', id, patch });
 }
 
 export async function resolveNote(id: string, resolved: boolean) {
-  const { error } = await supabase.from('cs_notes').update({
+  await write({ kind: 'update', table: 'cs_notes', id, patch: {
     status: resolved ? 'resolved' : 'open',
-    resolved_at: resolved ? new Date().toISOString() : null,
-  }).eq('id', id);
-  if (error) throw new Error(error.message);
+    resolved_at: resolved ? now() : null,
+  } });
 }
 
 export async function answerNote(id: string, answer: string) {
-  const { error } = await supabase.from('cs_notes').update({ answer }).eq('id', id);
-  if (error) throw new Error(error.message);
+  await write({ kind: 'update', table: 'cs_notes', id, patch: { answer } });
 }
 
 export async function setSkillHidden(id: string, hidden: boolean) {
-  const { error } = await supabase.from('cs_skills').update({ hidden }).eq('id', id);
-  if (error) throw new Error(error.message);
+  await write({ kind: 'update', table: 'cs_skills', id, patch: { hidden } });
 }
 
 export async function updateAtlas(id: string, patch: Record<string, unknown>) {
-  const { error } = await supabase.from('cs_atlas').update(patch).eq('id', id);
-  if (error) throw new Error(error.message);
+  await write({ kind: 'update', table: 'cs_atlas', id, patch });
 }
 
 export async function setTabPrefs(userId: string, order: string[], muted: string[]) {
-  const { error } = await supabase
-    .from('cs_profile').update({ tab_order: order, tab_muted: muted }).eq('user_id', userId);
-  if (error) throw new Error(error.message);
+  await write({ kind: 'profile', table: 'cs_profile', userId,
+    patch: { tab_order: order, tab_muted: muted } });
 }
 
 export async function updateRow(table: string, id: string, patch: Record<string, unknown>) {
-  const { error } = await supabase.from(table).update(patch).eq('id', id);
-  if (error) throw new Error(error.message);
+  await write({ kind: 'update', table, id, patch });
 }

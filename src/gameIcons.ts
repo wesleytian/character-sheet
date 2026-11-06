@@ -190,7 +190,7 @@ import {
   GiWoodBeam,
   GiWool,
   GiZebraShield,
-} from 'react-icons/gi';
+} from './gi';
 
 const MAP: Record<string, IconType> = {
   "Lion": GiLion,

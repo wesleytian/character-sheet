@@ -1,6 +1,11 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from './supabase';
-import { loadSheet, seedIfEmpty } from './db';
+import { loadSheet, seedIfEmpty, needsSeed, runOp, setDemoMode } from './db';
+import { disguise } from './demo';
+import {
+  cacheSheet, cachedSheet, applyAll, queued, onQueueChange, drain, onOp, applyLocally,
+  isOffline, looksOffline,
+} from './offline';
 import { Sheet as SheetData, EMPTY_SHEET } from './types';
 import { Sheet } from './Sheet';
 import { Chat } from './Chat';
@@ -78,6 +83,14 @@ export function App() {
   const [syncing, setSyncing] = useState(false);
   const [adding, setAdding] = useState<AddKind | null>(null);
   const [picking, setPicking] = useState<PickerKind | null>(null);
+  // Showing cached data because the server could not be reached.
+  const [stale, setStale] = useState(isOffline());
+  const [pending, setPending] = useState(queued().length);
+  // Someone is looking over your shoulder: same sheet, invented numbers.
+  const [demo, setDemo] = useState(new URLSearchParams(location.search).has('demo'));
+  const [demoSeed, setDemoSeed] = useState(7);
+  const lastLoad = useRef(0);
+  useEffect(() => { setDemoMode(demo); }, [demo]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -94,26 +107,106 @@ export function App() {
     if (!userId) return;
     setSyncing(true);
     try {
-      setSheet(await loadSheet(userId));
+      // Anything still queued is layered on top, so a write made offline does
+      // not vanish from the screen when a later load succeeds.
+      const fresh = applyAll(await loadSheet(userId));
+      lastLoad.current = Date.now();
+      cacheSheet(userId, fresh);
+      setSheet(fresh);
+      setError('');
+      setStale(false);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      const cached = cachedSheet(userId);
+      if (looksOffline(e) && cached) {
+        setSheet(applyAll(cached));
+        setStale(true);
+      } else {
+        setError(e instanceof Error ? e.message : String(e));
+      }
     } finally {
       setSyncing(false);
     }
   }, [userId]);
+
+  // Send anything written while offline, then reload from the server.
+  const flush = useCallback(async () => {
+    if (!userId || isOffline()) return;
+    const sent = await drain(runOp);
+    if (sent) await refresh();
+  }, [userId, refresh]);
+
+  // Apply every write to the sheet as it is made. The reload that follows
+  // only confirms it.
+  useEffect(() => onOp((op) => setSheet((s) => applyLocally(s, op))), []);
+
+  // Come back to the tab and you get the current sheet. Without this the page
+  // keeps whatever it loaded hours ago, which looks exactly like data loss.
+  useEffect(() => {
+    const onShow = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (Date.now() - lastLoad.current < 30_000) return;
+      refresh();
+    };
+    document.addEventListener('visibilitychange', onShow);
+    window.addEventListener('focus', onShow);
+    return () => {
+      document.removeEventListener('visibilitychange', onShow);
+      window.removeEventListener('focus', onShow);
+    };
+  }, [refresh]);
+
+  useEffect(() => {
+    setPending(queued().length);
+    const off = onQueueChange(setPending);
+    const back = () => { setStale(false); flush(); };
+    const gone = () => setStale(true);
+    window.addEventListener('online', back);
+    window.addEventListener('offline', gone);
+    return () => {
+      off();
+      window.removeEventListener('online', back);
+      window.removeEventListener('offline', gone);
+    };
+  }, [flush]);
 
   useEffect(() => {
     if (!userId) return;
     (async () => {
       try {
         setBooting(true);
-        setPhase('checking character record\u2026');
-        await seedIfEmpty(userId, (msg) => {
-          setBootLines((l) => [...l, msg]);
-          setPhase(`writing ${msg}\u2026`);
-        });
+        // Paint the cached sheet immediately - the network round trip is the
+        // slowest thing on a cold open, and the data rarely changes between
+        // one load and the next.
+        const cached = cachedSheet(userId);
+        if (cached) {
+          setSheet(applyAll(cached));
+          setBooting(false);
+        }
+        await flush();
+
+        // Then load, and seed only if what comes back is genuinely empty.
+        // Seeding used to run first and cost five serial round trips on every
+        // load, for an account seeded months ago.
         setPhase('loading sheet\u2026');
-        await refresh();
+        let first: SheetData;
+        try {
+          first = applyAll(await loadSheet(userId));
+          cacheSheet(userId, first);
+          setSheet(first);
+          setStale(false);
+        } catch (e) {
+          if (!cached || !looksOffline(e)) throw e;
+          setStale(true);
+          return;
+        }
+        if (needsSeed(first)) {
+          setPhase('checking character record\u2026');
+          await seedIfEmpty(userId, (msg) => {
+            setBootLines((l) => [...l, msg]);
+            setPhase(`writing ${msg}\u2026`);
+          }, first);
+          await refresh();
+        }
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
       } finally {
@@ -156,7 +249,32 @@ export function App() {
     <>
       {error && <div className="page r">{error}</div>}
       {syncing && <div className="syncing">syncing…</div>}
-      <Sheet sheet={sheet} onChanged={refresh} onAdd={setAdding} onPick={setPicking} userId={userId} />
+      {(stale || pending > 0) && (
+        <div className="offline-bar">
+          {stale && <span>offline — showing your last saved sheet</span>}
+          {pending > 0 && (
+            <span>
+              {pending} change{pending === 1 ? '' : 's'} waiting to sync
+              {!isOffline() && <button className="btn" onClick={flush}>retry now</button>}
+            </span>
+          )}
+        </div>
+      )}
+      {demo && (
+        <div className="demo-bar">
+          <span>Demo sheet — invented numbers, nothing here is saved</span>
+          <button className="btn" onClick={() => setDemoSeed((n) => n + 1)}>reroll</button>
+          <button className="btn primary" onClick={() => setDemo(false)}>back to mine</button>
+        </div>
+      )}
+      <Sheet sheet={demo ? disguise(sheet, demoSeed) : sheet}
+             onChanged={demo ? () => {} : refresh}
+             onAdd={setAdding} onPick={setPicking}
+             userId={userId} apiKey={demo ? '' : apiKey} demo={demo} />
+      {!demo && (
+        <button className="demo-toggle" title="Show someone this sheet with invented numbers"
+                onClick={() => setDemo(true)}>demo</button>
+      )}
       {picking && (
         <Picker
           kind={picking}

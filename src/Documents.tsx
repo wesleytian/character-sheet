@@ -2,7 +2,9 @@ import { DocumentRow } from './types';
 import { signedUrl } from './db';
 
 /** The reports the readings actually came from, openable. */
-export function Documents({ docs }: { docs: DocumentRow[] }) {
+export function Documents({
+  docs, onRemove,
+}: { docs: DocumentRow[]; onRemove?: (id: string) => void }) {
   if (!docs.length) {
     return (
       <p className="d">
@@ -17,13 +19,18 @@ export function Documents({ docs }: { docs: DocumentRow[] }) {
   return (
     <>
       {docs.map((d) => (
-        <button className="row metric-row" key={d.id} onClick={() => open(d.storage_path)}>
-          <span className="k num">{d.created_at.slice(0, 10)}</span>
-          <span className="v">{d.name}</span>
-          <span className="d">
-            {d.size_bytes ? `${Math.round(d.size_bytes / 1024)} KB` : ''}
-          </span>
-        </button>
+        <div className="row metric-row doc-row" key={d.id}>
+          <button className="doc-open" onClick={() => open(d.storage_path)}>
+            <span className="k num">{d.created_at.slice(0, 10)}</span>
+            <span className="v">{d.name}</span>
+            <span className="d">
+              {d.size_bytes ? `${Math.round(d.size_bytes / 1024)} KB` : ''}
+            </span>
+          </button>
+          {onRemove && (
+            <button className="unpin" title="Remove" onClick={() => onRemove(d.id)}>×</button>
+          )}
+        </div>
       ))}
     </>
   );

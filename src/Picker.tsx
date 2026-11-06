@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { AtlasEntry } from './types';
-import { insertRows, deleteRow, updateAtlas } from './db';
+import { upsertRows, deleteRow, updateAtlas } from './db';
 import { RegionMap, MapKind } from './RegionMap';
 import { Icon } from './Icon';
 import { CONTINENTS, WILD_ANIMALS, EATEN_ANIMALS, TOTAL_COUNTRIES,
@@ -64,9 +64,18 @@ export function Picker({
 
 
   // Three states, not two: off -> visited -> planning to go -> off.
-  const [marks, setMarks] = useState<Record<string, string>>(
-    () => Object.fromEntries(existing.map((e) => [e.name, e.state || 'visited'])),
-  );
+  // Built by hand rather than with Object.fromEntries, which resolves a
+  // repeated name to whichever row happens to come last - so a place recorded
+  // as both visited and planned would show as planned half the time. Visited
+  // wins, matching how the sheet counts.
+  const [marks, setMarks] = useState<Record<string, string>>(() => {
+    const m: Record<string, string> = {};
+    for (const e of existing) {
+      const state = e.state || 'visited';
+      if (m[e.name] !== 'visited') m[e.name] = state;
+    }
+    return m;
+  });
   const checked = new Set(Object.keys(marks));
   const [filter, setFilter] = useState('');
   const [busy, setBusy] = useState(false);
@@ -100,7 +109,9 @@ export function Picker({
       );
 
       if (toAdd.length) {
-        await insertRows(
+        // Upsert, not insert: `existing` is a snapshot from when the modal
+        // opened, so anything ticked on the map behind it is already there.
+        await upsertRows(
           'cs_atlas',
           toAdd.map(([name, state]) => ({
             user_id: userId,
@@ -113,6 +124,7 @@ export function Picker({
             display_order: 0,
             is_public: true,
           })),
+          'user_id,kind,name',
         );
       }
       for (const row of toUpdate) await updateAtlas(row.id, { state: marks[row.name] });
@@ -144,7 +156,7 @@ export function Picker({
         {MAPPED.includes(kind) && (
           <div className="picker-map">
             <RegionMap kind={kind as MapKind} visited={existing} userId={userId}
-                       onChanged={onSaved} />
+                       onChanged={onSaved} editable />
           </div>
         )}
 

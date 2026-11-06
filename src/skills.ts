@@ -3,6 +3,8 @@ import { Skill, SkillMilestone } from './types';
 export interface DerivedSkill {
   skill: Skill;
   level: number;
+  /** True when the level is a carried-over self-rating, not a ticked rung. */
+  selfRated: boolean;
   /** The highest rung actually achieved. */
   current: SkillMilestone | null;
   /** The next rung up, if there is one. */
@@ -32,7 +34,12 @@ export function deriveSkill(skill: Skill, all: SkillMilestone[]): DerivedSkill {
     level = Math.round(base + (next.level - base) * fraction);
   }
 
-  return { skill, level, current, next, ladder };
+  // A rewritten ladder keeps the old rating as a self-assessment rather than
+  // ticking rungs you never earned. It stands in only until a rung is ticked.
+  const selfRated = !current && (skill.self_level ?? 0) > 0;
+  if (selfRated) level = skill.self_level!;
+
+  return { skill, level, selfRated, current, next, ladder };
 }
 
 export function rankOf(level: number): string {
