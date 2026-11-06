@@ -3,6 +3,29 @@
 A life dashboard shaped like a roguelike character dump. Quests, skills with
 derived levels, health metrics, and an atlas — updated by talking to it.
 
+Screenshots show the fictional sample character every new account starts with
+(Rowan Abernathy, from `src/seed.ts`).
+
+![Character card](docs/screenshots/sheet.jpg)
+*The character card: title derived from top skills, accomplishments, and what's in progress.*
+
+![Side quests](docs/screenshots/quests.jpg)
+*Side quests grouped by track, with progress counts and a warning when too many are open at once.*
+
+![Health](docs/screenshots/health.jpg)
+*Health: a score, body and performance readings, and bloodwork against targets.*
+
+![Atlas](docs/screenshots/atlas.jpg)
+*The atlas: places lived, countries by continent, US states and other maps.*
+
+### Sample mode
+
+To look around without an account or a backend, run `npm run dev` and open
+http://localhost:5174/sample.html. It renders the sample character in memory:
+there is no sign-in, every Supabase request is blocked in the page, and writes
+do nothing. It is dev only and not part of the production build. Add
+`?tab=skills` (or any tab name) to open a tab directly.
+
 ## Backend
 
 Data lives in Supabase. Every table is `cs_`-prefixed, so the app can share a
