@@ -1,7 +1,7 @@
 import { supabase } from './supabase';
 import { Sheet, EMPTY_SHEET } from './types';
 import {
-  SEED_SKILLS, SEED_QUESTS, SEED_METRICS, SEED_ATLAS, SEED_PROFILE,
+  SEED_SKILLS, SEED_QUESTS, SEED_METRICS, SEED_ATLAS, SEED_PROFILE, SEED_MEASUREMENTS,
 } from './seed';
 import { SPORT_LADDER } from './catalog';
 
@@ -91,7 +91,9 @@ export async function seedIfEmpty(
     check('profile', pErr);
   }
 
+  let seededMetrics = false;
   if (await isEmpty('cs_metrics')) {
+    seededMetrics = true;
     const { error } = await supabase.from('cs_metrics').insert(
       SEED_METRICS.map((m, i) => ({
         user_id: userId,
@@ -107,6 +109,25 @@ export async function seedIfEmpty(
       })),
     );
     check(`metrics (${SEED_METRICS.length})`, error);
+  }
+
+  // Sample readings go in only alongside the sample metrics, i.e. on a brand
+  // new account. An existing sheet that merely has no readings yet must never
+  // be handed invented numbers.
+  if (seededMetrics && await isEmpty('cs_measurements')) {
+    const unitOf = new Map(SEED_METRICS.map((m) => [m.key, m.unit ?? '']));
+    const { error } = await supabase.from('cs_measurements').insert(
+      SEED_MEASUREMENTS.map((r) => ({
+        user_id: userId,
+        metric_key: r.key,
+        value: r.value,
+        unit: unitOf.get(r.key) ?? '',
+        measured_at: r.on,
+        source: r.source,
+        note: '',
+      })),
+    );
+    check(`measurements (${SEED_MEASUREMENTS.length})`, error);
   }
 
   if (await isEmpty('cs_quests')) {
