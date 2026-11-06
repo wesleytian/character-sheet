@@ -19,11 +19,14 @@ export interface SeedMilestone {
   achieved?: boolean;
   on?: string;
   note?: string;
+  /** Shown on the card as an accomplishment. */
+  pinned?: boolean;
 }
 
 export interface SeedSkill {
   name: string;
-  category: 'physical' | 'mental' | 'craft' | 'world';
+  category: 'physical' | 'mental' | 'craft' | 'world'
+    | 'body' | 'sport' | 'mind' | 'language' | 'survival' | 'hobby';
   mastery_def: string;
   ladder: SeedMilestone[];
 }
@@ -203,6 +206,8 @@ export interface SeedQuest {
   cur?: number;
   total?: number;
   note?: string;
+  /** Shown on the card as an accomplishment (done quests only). */
+  pinned?: boolean;
 }
 
 export const SEED_QUESTS: SeedQuest[] = [

@@ -13,3 +13,6 @@ scripts/quests.json
 scripts/quests.sql
 data/
 *.local.json
+
+# A curated copy of your own sheet for sample.html?seed=private (screenshots)
+src/seed.private.ts

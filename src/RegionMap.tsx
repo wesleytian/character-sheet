@@ -138,7 +138,11 @@ export function RegionMap({
   const stateOf = (label: string): string | null =>
     label in pending ? pending[label] : (rows.get(label)?.state ?? null);
   const isOn = (label: string) => stateOf(label) !== null;
-  const missing = visited.filter((v) => !geom.labels.has(v.name)).map((v) => v.name);
+  // Parks are points, not shapes, so they are checked against the park list -
+  // checked against the state shapes, every visited park read as missing.
+  const missing = visited
+    .filter((v) => (kind === 'park' ? !parkPts.some((pk) => pk.name === v.name) : !geom.labels.has(v.name)))
+    .map((v) => v.name);
 
   /**
    * One write at a time per label. `rows` only refreshes once onChanged() has

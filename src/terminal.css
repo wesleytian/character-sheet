@@ -145,6 +145,10 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .skill { position: relative; padding: 3px 0; border-bottom: 1px solid #1E1913; }
 .skill:last-child { border-bottom: 0; }
 .skill-top { display: flex; gap: 11px; align-items: center; }
+/* .meter is width:100% everywhere else; here it squeezed the name to an
+   ellipsis and the rung text to nothing. */
+.skill-top .meter { width: auto; flex: 0 0 22%; }
+.skill-top .skill-name { flex: 0 0 9.5em; }
 .skill-name {
   flex: 0 1 auto; min-width: 6em; max-width: 11em;
   font-family: var(--body); font-weight: 700;

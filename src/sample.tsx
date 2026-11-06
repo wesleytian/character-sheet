@@ -12,9 +12,7 @@ import ReactDOM from 'react-dom/client';
 import { Sheet } from './Sheet';
 import * as db from './db';
 import { EMPTY_SHEET, Sheet as SheetData } from './types';
-import {
-  SEED_PROFILE, SEED_METRICS, SEED_MEASUREMENTS, SEED_QUESTS, SEED_ATLAS, SEED_SKILLS,
-} from './seed';
+import * as rowan from './seed';
 import './terminal.css';
 
 if (!import.meta.env.DEV) throw new Error('sample mode is dev only');
@@ -22,18 +20,37 @@ if (!import.meta.env.DEV) throw new Error('sample mode is dev only');
 // Writes become no-ops where the db layer supports it.
 (db as { setDemoMode?: (on: boolean) => void }).setDemoMode?.(true);
 
+/**
+ * ?seed=private renders src/seed.private.ts instead of Rowan, if that file
+ * exists. It is gitignored - a place to keep a curated copy of your own sheet
+ * for screenshots without it ever reaching the repo. The glob matches nothing
+ * when the file is absent, so the build does not depend on it.
+ */
+type Seed = typeof rowan & {
+  /** Optional belongings for the Vault tab. Shown masked while it is locked. */
+  SEED_ITEMS?: { name: string; slot: string }[];
+  /** Optional Vault rows. Values are left empty in sample mode, always. */
+  SEED_MONEY?: { key: string; label: string; category: string }[];
+};
+const privateSeeds = import.meta.glob<Seed>('./seed.private.ts', { eager: true });
+const wantPrivate = new URLSearchParams(location.search).get('seed') === 'private';
+const seed: Seed = (wantPrivate && privateSeeds['./seed.private.ts']) || rowan;
+const {
+  SEED_PROFILE, SEED_METRICS, SEED_MEASUREMENTS, SEED_QUESTS, SEED_ATLAS, SEED_SKILLS,
+} = seed;
+
 const USER = 'sample-user';
 const id = (prefix: string, i: number) => `${prefix}-${i}`;
 
 function buildSample(): SheetData {
   const skills = SEED_SKILLS.map((s, i) => ({
     id: id('skill', i), name: s.name, category: s.category, mastery_def: s.mastery_def,
-    icon: '', pursuing: false, hidden: false, self_level: null, display_order: i, is_public: true,
+    icon: '', pursuing: true, hidden: false, self_level: null, display_order: i, is_public: true,
   }));
   const milestones = SEED_SKILLS.flatMap((s, i) => s.ladder.map((m, j) => ({
     id: id(`ms-${i}`, j), skill_id: id('skill', i), label: m.label, level: m.level,
     achieved: m.achieved ?? false, achieved_on: m.on ?? null,
-    progress_current: null, progress_total: null, note: m.note ?? '', pinned: false,
+    progress_current: null, progress_total: null, note: m.note ?? '', pinned: m.pinned ?? false,
   })));
   const metrics = SEED_METRICS.map((m, i) => ({
     id: id('metric', i), key: m.key, label: m.label, unit: m.unit ?? '', category: m.category,
@@ -53,25 +70,39 @@ function buildSample(): SheetData {
     id: id('quest', i), title: q.title, kind: q.kind, track: q.track ?? '', phase: q.phase ?? '',
     status: q.status ?? 'locked', completed_on: q.on ?? null,
     progress_current: q.cur ?? null, progress_total: q.total ?? null, note: q.note ?? '',
-    display_order: i, is_public: true, pinned: false, parent_id: null, is_private: false,
+    display_order: i, is_public: true, pinned: q.pinned ?? false, parent_id: null, is_private: false,
   }));
   const atlas = SEED_ATLAS.map((a, i) => ({
     id: id('place', i), kind: a.kind, name: a.name,
     detail: (a as { detail?: string }).detail ?? '', happened_on: null,
-    years: (a as { years?: number }).years ?? null, state: '', display_order: i, is_public: true,
+    years: (a as { years?: number }).years ?? null,
+    // The maps fill a region by its state ('visited' | 'planned'); an empty
+    // state counted as visited in the lists but left every map blank.
+    state: (a as { state?: string }).state ?? 'visited', display_order: i, is_public: true,
   }));
   const profile = {
     user_id: USER, ...SEED_PROFILE, gold_value: null, healthspan_years: 75,
     gold_updated_at: null, avatar_url: null, friend_order: null, vault_pin_hash: null,
     tab_order: null, tab_muted: null,
   };
+  const items = (seed.SEED_ITEMS ?? []).map((it, i) => ({
+    id: id('item', i), name: it.name, slot: it.slot, brand: '', acquired_on: null, value: null, note: '',
+  }));
+  const money = (seed.SEED_MONEY ?? []).map((m, i) => ({
+    id: id('money', i), key: m.key, label: m.label, value: null, unit: 'USD',
+    category: m.category, note: '', display_order: i, recorded_on: null,
+  }));
   // Cast through unknown so this keeps compiling as row types gain columns.
-  return { ...EMPTY_SHEET, profile, skills, milestones, metrics, measurements, quests, atlas } as unknown as SheetData;
+  return {
+    ...EMPTY_SHEET, profile, skills, milestones, metrics, measurements, quests, atlas, items, money,
+  } as unknown as SheetData;
 }
 
 const sheet = buildSample();
 const props = {
   sheet, userId: USER, apiKey: '',
+  // Show the seed's own title line rather than one derived from its skills.
+  demo: true,
   onChanged: () => {}, onAdd: () => {}, onPick: () => {},
 };
 
