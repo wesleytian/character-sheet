@@ -7,6 +7,11 @@
 -- dblclick. The two counters on the Journeys tab then disagreed, one counting
 -- rows and the other counting names.
 
+-- state ('visited' | 'planned') is read below. On a fresh install nothing has
+-- created it yet, so add it here; on a project that already has it this is a
+-- no-op.
+alter table cs_atlas add column if not exists state text not null default 'visited';
+
 -- Collapse what is already there before the index can be built. Keeps the
 -- oldest row of each group, preferring one that is not merely planned -
 -- somewhere you have been outranks somewhere you mean to go.

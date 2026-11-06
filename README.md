@@ -41,7 +41,19 @@ cp .env.example .env.local   # then fill in your Supabase URL and anon key
 npm run dev                  # http://localhost:5174
 ```
 
-The schema in `supabase/migrations/` must be applied once before first run.
+Before first run, apply the schema to your Supabase project. The files in
+`supabase/migrations/` are idempotent and build the full schema from nothing:
+every `cs_` table with row level security (each user sees only their own rows),
+plus the private `character-sheet` storage bucket used for uploaded documents
+and portraits. Either:
+
+- **CLI:** `supabase link --project-ref <your-ref>` then `supabase db push`, or
+- **Dashboard:** paste each file into the SQL editor and run them in filename
+  order.
+
+Sign-in is Google OAuth: enable the Google provider under Authentication →
+Providers and add your dev URL (http://localhost:5174) to the redirect URLs. The
+first time you sign in, the app seeds your account with the sample character.
 
 The chat needs an Anthropic API key. It reads
 `user_settings.settings.anthropicApiKey` if that table exists; if it
